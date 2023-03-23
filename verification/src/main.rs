@@ -14,7 +14,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // print_constraint_storage(&storage);
     // print_witness(&witness);
     // print_signal_name_map(&signal_name_map);
-    print_tree_constraints(&tree_constraints);
+    // print_tree_constraints(&tree_constraints);
 
     return Ok(());
 }

@@ -15,56 +15,34 @@ pub fn parse_constraint_list(path: &Path) -> Result<ConstraintStorage, Box<dyn E
     let f = File::open(path)?;
     let data : Value = serde_json::from_reader(f)?;
 
-    if let Value::Object(o) = data {
-        let maybe_json_constraint_list = o.get("constraints");
 
-        let json_constraint_list;
-        match maybe_json_constraint_list {
-            None => {
-                return Err("constraint.json main object does not contain a constraints array".into());
-            }
-            Some(e) => {json_constraint_list = e;}
+    let o = data.as_object().ok_or("constraint.json main value is not an object")?;
+    let json_constraint_list = o.get("constraints").ok_or("constraint.json main object does not contain a constraints array")?;
+
+    let v = json_constraint_list.as_array().ok_or("constraint.json 'constraints' value is not an array")?;
+    let mut storage = ConstraintStorage::new();
+
+    for val in v {
+        // Read one constraint
+        let arr = val.as_array().ok_or("constraint.json contains a non-array in constraint list")?;
+        if arr.len() != 3 {
+            return Err("Constraint in constraint.json has more than 3 terms".into());
         }
 
-        if let Value::Array(v) = json_constraint_list {
-            let mut storage = ConstraintStorage::new();
+        let maybe_cs : Result<Vec<_>, _> = arr.into_iter().map(|x| -> Result<HashMap<usize, BigInt>, Box<dyn Error>> {
+            let m = x.as_object().ok_or("Constraint in 'constraint.json' has a non-object")?;
+            m.into_iter()
+                .map(|(k, v)| -> Result<(usize, BigInt), Box<dyn Error>> {
+                    let s = v.as_str().ok_or("Coefficient in 'constraint.json' is not a string")?;
+                    Ok((k.parse::<usize>()?, s.parse::<BigInt>()?))
+                }).collect()
+        }).collect();
 
-            for val in v {
-                // Read one constraint
-                if let Value::Array(arr) = val {
-                    if arr.len() != 3 {
-                        return Err("Constraint in constraint.json has more than 3 terms".into());
-                    }
-
-                    let maybe_cs : Result<Vec<_>, _> = arr.into_iter().map(|x| -> Result<HashMap<usize, BigInt>, Box<dyn Error>> {
-                        if let Value::Object(m) = x {
-                            m.into_iter()
-                                .map(|(k, v)| -> Result<(usize, BigInt), Box<dyn Error>> {
-                                    if let Value::String(s) = v {
-                                        Ok((k.parse::<usize>()?, s.parse::<BigInt>()?))
-                                    } else {
-                                        Err("Coefficient in 'constraint.json' is not a string".into())
-                                    }
-                                }).collect()
-                        } else {
-                            return Err("Constraint in 'constraint.json' has a non-object".into());
-                        }
-                    }).collect();
-
-                    let cs = maybe_cs?;
-
-                    storage.add_constraint(Constraint::new(cs[0].clone(), cs[1].clone(), cs[2].clone()));
-                } else {
-                    return Err("constraint.json contains a non-array in constraint list".into());
-                }
-            }
-            return Ok(storage);
-        } else {
-            return Err("constraint.json 'constraints' value is not an array".into());
-        }
-    } else {
-        return Err("constraint.json main value is not an object".into());
+        let (A, B, C) = maybe_cs?.into_iter().collect_tuple().unwrap();
+        storage.add_constraint(Constraint::new(A, B, C));
     }
+
+    Ok(storage)
 }
 
 type Witness = HashMap<usize, BigInt>;
@@ -73,18 +51,13 @@ pub fn parse_witness(path: &Path) -> Result<Witness, Box<dyn Error>> {
     let f = File::open(path)?;
     let data : Value = serde_json::from_reader(f)?;
 
-    if let Value::Object(o) = data {
-        let map = o.into_iter().map(|(k, v) : (String, Value)| -> Result<(usize, BigInt), Box<dyn Error>> {
-            if let Value::String(s) = v {
-                Ok((k.parse::<usize>()?, s.parse::<BigInt>()?))
-            } else {
-                Err("witness.json has a witness value that is not a string".into())
-            }
-        }).collect::<Result<Witness, Box<dyn Error>>>()?;
-        return Ok(map);
-    } else {
-        return Err("witness.json main value is not an object".into());
-    }
+    let o = data.as_object().ok_or("witness.json main value is not an object")?;
+    let map = o.into_iter().map(|(k, v)| -> Result<(usize, BigInt), Box<dyn Error>> {
+        let s = v.as_str().ok_or("witness.json has a witness value that is not a string")?;
+        Ok((k.parse::<usize>()?, s.parse::<BigInt>()?))
+    }).collect::<Result<Witness, Box<dyn Error>>>()?;
+
+    Ok(map)
 }
 
 type SignalNameMap = HashMap<usize, String>;
@@ -95,7 +68,7 @@ pub fn parse_signal_name_map(path: &Path) -> Result<SignalNameMap, Box<dyn Error
 
     for maybe_line in io::BufReader::new(f).lines() {
         let line = maybe_line.unwrap();
-        let (id, _, _, name) = line.split(',').collect_tuple().unwrap();
+        let (id, _, _, name) = line.split(',').collect_tuple().ok_or("Invalid number of entries per line in 'circuit_signals.sym'")?;
         map.insert(id.parse::<usize>()?, name.to_string());
     }
 
