@@ -45,7 +45,7 @@ pub fn parse_constraint_list(path: &Path) -> Result<ConstraintStorage, Box<dyn E
     Ok(storage)
 }
 
-type Witness = HashMap<usize, BigInt>;
+pub type Witness = HashMap<usize, BigInt>;
 
 pub fn parse_witness(path: &Path) -> Result<Witness, Box<dyn Error>> {
     let f = File::open(path)?;
@@ -60,7 +60,7 @@ pub fn parse_witness(path: &Path) -> Result<Witness, Box<dyn Error>> {
     Ok(map)
 }
 
-type SignalNameMap = HashMap<usize, String>;
+pub type SignalNameMap = HashMap<usize, String>;
 
 pub fn parse_signal_name_map(path: &Path) -> Result<SignalNameMap, Box<dyn Error>> {
     let f = File::open(path)?;
@@ -77,16 +77,16 @@ pub fn parse_signal_name_map(path: &Path) -> Result<SignalNameMap, Box<dyn Error
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct TreeConstraints {
-    no_constraints: usize,
-    initial_constraint: usize,
-    node_id: usize,
-    template_name: String,
-    number_inputs: usize,
-    number_outputs: usize,
-    number_signals: usize,
-    initial_signal: usize,
-    are_double_arrow: Vec<(usize, usize)>, // first number constraint, second number assigned signal
-    subcomponents: LinkedList<TreeConstraints>,
+    pub no_constraints: usize,
+    pub initial_constraint: usize,
+    pub node_id: usize,
+    pub template_name: String,
+    pub number_inputs: usize,
+    pub number_outputs: usize,
+    pub number_signals: usize,
+    pub initial_signal: usize,
+    pub are_double_arrow: Vec<(usize, usize)>, // first number constraint, second number assigned signal
+    pub subcomponents: LinkedList<TreeConstraints>,
 }
 
 pub fn parse_tree_constraints(path: &Path) -> Result<TreeConstraints, Box<dyn Error>> {

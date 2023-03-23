@@ -1,5 +1,8 @@
 mod input_data;
+mod tree_constraint_graph_printer;
+
 use input_data::*;
+use tree_constraint_graph_printer::*;
 
 use std::error::Error;
 use std::path::Path;
@@ -15,6 +18,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // print_witness(&witness);
     // print_signal_name_map(&signal_name_map);
     // print_tree_constraints(&tree_constraints);
+    print_tree_constraint_graph(&tree_constraints, &signal_name_map, base_path.join("components.svg").as_path())?;
 
     return Ok(());
 }
