@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "circom_algebra",
+    "constant_tracking",
+    "verification"
+]

@@ -1,0 +1,10 @@
+[package]
+name = "verification"
+version = "1.0.0"
+authors = ["Pedro Palacios Almendros", "Costa Group UCM","iden3"]
+edition = "2021"
+
+[dependencies]
+num-bigint-dig = "0.6.0"
+num-traits = "0.2.6"
+circom_algebra = {path = "../circom_algebra" }
