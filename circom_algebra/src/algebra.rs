@@ -1009,7 +1009,7 @@ where
 }
 
 impl<C: Default + Clone + Display + Hash + Eq> Constraint<C> {
-    fn new(a: HashMap<C, BigInt>, b: HashMap<C, BigInt>, c: HashMap<C, BigInt>) -> Constraint<C> {
+    pub fn new(a: HashMap<C, BigInt>, b: HashMap<C, BigInt>, c: HashMap<C, BigInt>) -> Constraint<C> {
         Constraint { a, b, c }
     }
 
