@@ -107,10 +107,13 @@ pub fn parse_signal_name_map(path: &Path) -> Result<SignalNameMap, Box<dyn Error
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct TreeConstraints {
+    /* prime number corresponding to the field Z_p*/
+    pub field: String,
     pub no_constraints: usize,
     pub initial_constraint: usize,
     pub node_id: usize,
     pub template_name: String,
+    pub component_name: String,
     pub number_inputs: usize,
     pub number_outputs: usize,
     pub number_signals: usize,

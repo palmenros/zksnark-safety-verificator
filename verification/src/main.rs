@@ -18,6 +18,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     // print_witness(&witness);
     // print_signal_name_map(&signal_name_map);
     // print_tree_constraints(&tree_constraints);
+
+    // let subcomponent = tree_constraints.subcomponents.into_iter().nth(2).unwrap();
     print_tree_constraint_graph(&tree_constraints, &signal_name_map, &storage, base_path.join("components.svg").as_path())?;
 
     return Ok(());
