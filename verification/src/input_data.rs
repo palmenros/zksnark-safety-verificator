@@ -7,9 +7,9 @@ use serde_json::Value;
 use std::error::Error;
 use std::fs::File;
 use std::io::BufRead;
-use std::path::Path;
+use std::path::{Path};
 use std::{
-    collections::{HashMap, LinkedList},
+    collections::{HashMap},
     io,
 };
 
@@ -39,12 +39,12 @@ fn parse_constraint_list(path: &Path) -> Result<ConstraintStorage, Box<dyn Error
         }
 
         let maybe_cs: Result<Vec<_>, _> = arr
-            .into_iter()
+            .iter()
             .map(|x| -> Result<HashMap<SignalIndex, BigInt>, Box<dyn Error>> {
                 let m = x
                     .as_object()
                     .ok_or("Constraint in 'constraint.json' has a non-object")?;
-                m.into_iter()
+                m.iter()
                     .map(|(k, v)| -> Result<(SignalIndex, BigInt), Box<dyn Error>> {
                         let s = v
                             .as_str()
@@ -55,8 +55,8 @@ fn parse_constraint_list(path: &Path) -> Result<ConstraintStorage, Box<dyn Error
             })
             .collect();
 
-        let (A, B, C) = maybe_cs?.into_iter().collect_tuple().unwrap();
-        storage.add_constraint(Constraint::new(A, B, C));
+        let (a, b, c) = maybe_cs?.into_iter().collect_tuple().unwrap();
+        storage.add_constraint(Constraint::new(a, b, c));
     }
 
     Ok(storage)
@@ -73,7 +73,7 @@ fn parse_witness(path: &Path) -> Result<Witness, Box<dyn Error>> {
         .as_object()
         .ok_or("witness.json main value is not an object")?;
     let map = o
-        .into_iter()
+        .iter()
         .map(|(k, v)| -> Result<(usize, BigInt), Box<dyn Error>> {
             let s = v
                 .as_str()
@@ -124,7 +124,7 @@ pub struct TreeConstraints {
     pub initial_signal: SignalIndex,
     pub are_double_arrow: Vec<(ConstraintIndex, SignalIndex)>,
     // first number constraint, second number assigned signal
-    pub subcomponents: LinkedList<TreeConstraints>,
+    pub subcomponents: Vec<TreeConstraints>,
 }
 
 fn parse_tree_constraints(path: &Path) -> Result<TreeConstraints, Box<dyn Error>> {
@@ -141,6 +141,13 @@ pub struct InputDataContext {
     pub tree_constraints: TreeConstraints,
 }
 
+pub struct InputDataContextView<'a> {
+    pub constraint_storage: &'a ConstraintStorage,
+    pub witness: &'a Witness,
+    pub signal_name_map: &'a SignalNameMap,
+    pub tree_constraints: &'a TreeConstraints,
+}
+
 impl InputDataContext {
     pub fn parse_from_files(folder_base_path: &Path) -> Result<InputDataContext, Box<dyn Error>> {
         let constraint_storage = parse_constraint_list(folder_base_path.join("circuit_constraints.json").as_path())?;
@@ -154,6 +161,35 @@ impl InputDataContext {
             signal_name_map,
             tree_constraints,
         })
+    }
+
+    pub fn get_context_view(&self) -> InputDataContextView {
+        InputDataContextView {
+            constraint_storage: &self.constraint_storage,
+            witness: &self.witness,
+            signal_name_map: &self.signal_name_map,
+            tree_constraints: &self.tree_constraints,
+        }
+    }
+}
+
+/* Represents a view of the context. tree_constraints might be a subcomponent instead of main component */
+impl<'a> InputDataContextView<'a> {
+    pub fn get_subcomponent_context_view(&self, idx: ComponentIndex) -> InputDataContextView {
+        InputDataContextView {
+            constraint_storage: self.constraint_storage,
+            witness: self.witness,
+            signal_name_map: self.signal_name_map,
+            tree_constraints: self.tree_constraints.subcomponents.get(idx).unwrap(),
+        }
+    }
+
+    pub fn is_signal_public(&self, signal: ConstraintIndex) -> bool {
+        let initial_signal = self.tree_constraints.initial_signal;
+        let number_inputs = self.tree_constraints.number_inputs;
+        let number_outputs = self.tree_constraints.number_outputs;
+
+        signal >= initial_signal + number_outputs && signal < initial_signal + number_outputs + number_inputs
     }
 }
 

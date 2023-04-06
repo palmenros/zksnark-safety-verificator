@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod input_data;
 mod tree_constraint_graph_printer;
 mod verification_graph;
@@ -7,6 +9,7 @@ use tree_constraint_graph_printer::*;
 
 use std::error::Error;
 use std::path::Path;
+use crate::verification_graph::VerificationGraph;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let base_path = Path::new(r"C:\Users\pedro\Documents\dev\CircomVerification\test-artifacts\binsubtest");
@@ -16,10 +19,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     // print_signal_name_map(&signal_name_map);
     // print_tree_constraints(&tree_constraints);
     let context = InputDataContext::parse_from_files(base_path)?;
+    let global_context_view = context.get_context_view();
 
-    // let subcomponent = tree_constraints.subcomponents.into_iter().nth(2).unwrap();
-    print_tree_constraint_graph(&context.tree_constraints, &context.signal_name_map,
-                                &context.constraint_storage, base_path.join("components.svg").as_path())?;
+    // let context_view = global_context_view;
+    let context_view = global_context_view.get_subcomponent_context_view(1);
 
-    return Ok(());
+    let verification_graph = VerificationGraph::create(&context_view);
+    print_verification_graph(&verification_graph, &context_view, base_path.join("components.svg").as_path())?;
+
+    Ok(())
 }
