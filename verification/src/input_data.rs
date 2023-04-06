@@ -13,7 +13,7 @@ use std::{
     io,
 };
 
-pub fn parse_constraint_list(path: &Path) -> Result<ConstraintStorage, Box<dyn Error>> {
+fn parse_constraint_list(path: &Path) -> Result<ConstraintStorage, Box<dyn Error>> {
     let f = File::open(path)?;
     let data: Value = serde_json::from_reader(f)?;
 
@@ -40,12 +40,12 @@ pub fn parse_constraint_list(path: &Path) -> Result<ConstraintStorage, Box<dyn E
 
         let maybe_cs: Result<Vec<_>, _> = arr
             .into_iter()
-            .map(|x| -> Result<HashMap<usize, BigInt>, Box<dyn Error>> {
+            .map(|x| -> Result<HashMap<SignalIndex, BigInt>, Box<dyn Error>> {
                 let m = x
                     .as_object()
                     .ok_or("Constraint in 'constraint.json' has a non-object")?;
                 m.into_iter()
-                    .map(|(k, v)| -> Result<(usize, BigInt), Box<dyn Error>> {
+                    .map(|(k, v)| -> Result<(SignalIndex, BigInt), Box<dyn Error>> {
                         let s = v
                             .as_str()
                             .ok_or("Coefficient in 'constraint.json' is not a string")?;
@@ -62,9 +62,10 @@ pub fn parse_constraint_list(path: &Path) -> Result<ConstraintStorage, Box<dyn E
     Ok(storage)
 }
 
-pub type Witness = HashMap<usize, BigInt>;
+pub type ConstraintIndex = usize;
+pub type Witness = HashMap<ConstraintIndex, BigInt>;
 
-pub fn parse_witness(path: &Path) -> Result<Witness, Box<dyn Error>> {
+fn parse_witness(path: &Path) -> Result<Witness, Box<dyn Error>> {
     let f = File::open(path)?;
     let data: Value = serde_json::from_reader(f)?;
 
@@ -84,9 +85,10 @@ pub fn parse_witness(path: &Path) -> Result<Witness, Box<dyn Error>> {
     Ok(map)
 }
 
-pub type SignalNameMap = HashMap<usize, String>;
+pub type SignalIndex = usize;
+pub type SignalNameMap = HashMap<SignalIndex, String>;
 
-pub fn parse_signal_name_map(path: &Path) -> Result<SignalNameMap, Box<dyn Error>> {
+fn parse_signal_name_map(path: &Path) -> Result<SignalNameMap, Box<dyn Error>> {
     let f = File::open(path)?;
     let mut map = SignalNameMap::new();
 
@@ -99,38 +101,65 @@ pub fn parse_signal_name_map(path: &Path) -> Result<SignalNameMap, Box<dyn Error
 
         // Remove first component path from name, that is, remove the initial "main."
         let (_, name) = fully_qualified_name.split_once(".").unwrap();
-        map.insert(id.parse::<usize>()?, name.to_string());
+        map.insert(id.parse::<SignalIndex>()?, name.to_string());
     }
 
     Ok(map)
 }
+
+pub type ComponentIndex = usize;
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct TreeConstraints {
     /* prime number corresponding to the field Z_p*/
     pub field: String,
     pub no_constraints: usize,
-    pub initial_constraint: usize,
-    pub node_id: usize,
+    pub initial_constraint: SignalIndex,
+    pub node_id: ComponentIndex,
     pub template_name: String,
     pub component_name: String,
     pub number_inputs: usize,
     pub number_outputs: usize,
     pub number_signals: usize,
-    pub initial_signal: usize,
-    pub are_double_arrow: Vec<(usize, usize)>,
+    pub initial_signal: SignalIndex,
+    pub are_double_arrow: Vec<(ConstraintIndex, SignalIndex)>,
     // first number constraint, second number assigned signal
     pub subcomponents: LinkedList<TreeConstraints>,
 }
 
-pub fn parse_tree_constraints(path: &Path) -> Result<TreeConstraints, Box<dyn Error>> {
+fn parse_tree_constraints(path: &Path) -> Result<TreeConstraints, Box<dyn Error>> {
     let f = File::open(path)?;
     let constraints: TreeConstraints = serde_json::from_reader(f)?;
 
     Ok(constraints)
 }
 
-pub fn print_constraint(c: &Constraint<usize>) {
+pub struct InputDataContext {
+    pub constraint_storage: ConstraintStorage,
+    pub witness: Witness,
+    pub signal_name_map: SignalNameMap,
+    pub tree_constraints: TreeConstraints,
+}
+
+impl InputDataContext {
+    pub fn parse_from_files(folder_base_path: &Path) -> Result<InputDataContext, Box<dyn Error>> {
+        let constraint_storage = parse_constraint_list(folder_base_path.join("circuit_constraints.json").as_path())?;
+        let witness = parse_witness(folder_base_path.join("witness.json").as_path())?;
+        let signal_name_map = parse_signal_name_map(folder_base_path.join("circuit_signals.sym").as_path())?;
+        let tree_constraints = parse_tree_constraints(folder_base_path.join("circuit_treeconstraints.json").as_path())?;
+
+        Ok(InputDataContext {
+            constraint_storage,
+            witness,
+            signal_name_map,
+            tree_constraints,
+        })
+    }
+}
+
+/* Printer functions to print parsed Input Data */
+
+pub fn print_constraint(c: &Constraint<ConstraintIndex>) {
     println!("Linear Expression A:");
     for c2 in c.a() {
         println!("     Signal: {:}", c2.0);
