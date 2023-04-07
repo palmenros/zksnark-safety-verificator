@@ -10,6 +10,7 @@ pub struct SubComponentOutputNode {
     pub not_yet_fixed_inputs: Vec<SignalIndex>,
 }
 
+#[allow(clippy::enum_variant_names)]
 pub enum Node {
     InputSignal,
     OutputSignal,

@@ -100,7 +100,7 @@ fn parse_signal_name_map(path: &Path) -> Result<SignalNameMap, Box<dyn Error>> {
             .ok_or("Invalid number of entries per line in 'circuit_signals.sym'")?;
 
         // Remove first component path from name, that is, remove the initial "main."
-        let (_, name) = fully_qualified_name.split_once(".").unwrap();
+        let (_, name) = fully_qualified_name.split_once('.').unwrap();
         map.insert(id.parse::<SignalIndex>()?, name.to_string());
     }
 
@@ -149,6 +149,7 @@ pub struct InputDataContextView<'a> {
 }
 
 impl InputDataContext {
+    //noinspection SpellCheckingInspection
     pub fn parse_from_files(folder_base_path: &Path) -> Result<InputDataContext, Box<dyn Error>> {
         let constraint_storage = parse_constraint_list(folder_base_path.join("circuit_constraints.json").as_path())?;
         let witness = parse_witness(folder_base_path.join("witness.json").as_path())?;
@@ -199,17 +200,17 @@ pub fn print_constraint(c: &Constraint<ConstraintIndex>) {
     println!("Linear Expression A:");
     for c2 in c.a() {
         println!("     Signal: {:}", c2.0);
-        println!("     Value : {:}", c2.1.to_string());
+        println!("     Value : {:}", c2.1);
     }
     println!("Linear Expression B:");
     for c2 in c.b() {
         println!("     Signal: {:}", c2.0);
-        println!("     Value : {:}", c2.1.to_string());
+        println!("     Value : {:}", c2.1);
     }
     println!("Linear Expression C: ");
     for c2 in c.c() {
         println!("     Signal: {:}", c2.0);
-        println!("     Value : {:}", c2.1.to_string());
+        println!("     Value : {:}", c2.1);
     }
 }
 

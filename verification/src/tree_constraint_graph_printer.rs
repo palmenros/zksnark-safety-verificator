@@ -1,4 +1,3 @@
-use graphviz_rust::attributes::{color_name, shape, NodeAttributes};
 use graphviz_rust::cmd::Format;
 use graphviz_rust::dot_generator::*;
 use graphviz_rust::dot_structures::*;
@@ -14,6 +13,7 @@ use crate::verification_graph::VerificationGraph;
 use crate::verification_graph::Node as VNode;
 
 
+//noinspection SpellCheckingInspection
 fn construct_graphviz_graph_from_verification_graph(
     verification_graph: &VerificationGraph,
     context: &InputDataContextView,
@@ -27,12 +27,12 @@ fn construct_graphviz_graph_from_verification_graph(
 
         let attrs = match node {
             VNode::InputSignal | VNode::OutputSignal => vec![
-                attr!("label", esc context.signal_name_map.get(&s).unwrap()),
+                attr!("label", esc context.signal_name_map.get(s).unwrap()),
                 attr!("color", "orange"),
                 attr!("shape", "Mdiamond"),
             ],
             VNode::IntermediateSignal => vec![
-                attr!("label", esc context.signal_name_map.get(&s).unwrap())
+                attr!("label", esc context.signal_name_map.get(s).unwrap())
             ],
 
             _ => unreachable!(),
@@ -75,12 +75,12 @@ fn construct_graphviz_graph_from_verification_graph(
         )));
 
         for output in &c.output_signals {
-            v.push(Stmt::Node(node!(output.to_string(); attr!("label", esc context.signal_name_map.get(&output).unwrap()), attr!("color", "blue"))));
+            v.push(Stmt::Node(node!(output.to_string(); attr!("label", esc context.signal_name_map.get(output).unwrap()), attr!("color", "blue"))));
             v.push(Stmt::Edge(edge!(node_id!(dummy_node_str) => node_id!(output.to_string()))));
         }
 
         for input in &c.input_signals {
-            v.push(Stmt::Node(node!(input.to_string(); attr!("label", esc context.signal_name_map.get(&input).unwrap()), attr!("color", "green"))));
+            v.push(Stmt::Node(node!(input.to_string(); attr!("label", esc context.signal_name_map.get(input).unwrap()), attr!("color", "green"))));
             v.push(Stmt::Edge(edge!(node_id!(input.to_string()) => node_id!(dummy_node_str);
                   attr!("dir", "none")
             )));
@@ -93,7 +93,7 @@ fn construct_graphviz_graph_from_verification_graph(
 
         let comp = context.tree_constraints.subcomponents.get(*cmp_index).unwrap();
 
-        let (_, component_name) = comp.component_name.split_once(".").unwrap();
+        let (_, component_name) = comp.component_name.split_once('.').unwrap();
         let component_subgraph_name = format!("{}: {}", component_name, comp.template_name);
         subgraph.stmts.push(Stmt::Attribute(attr!("label", esc component_subgraph_name)));
         subgraph.stmts.push(Stmt::GAttribute(GraphAttributes::Node(vec![
@@ -202,7 +202,7 @@ pub fn print_verification_graph(
 
     // TODO: Remove println
     // Debug print of Graphviz code
-    let s = print(g.clone(), &mut PrinterContext::default());
+    let _s = print(g.clone(), &mut PrinterContext::default());
     // println!("{}", s);
 
     let graph_svg = exec(g, &mut PrinterContext::default(), vec![Format::Svg.into()])?;
