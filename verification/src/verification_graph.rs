@@ -2,14 +2,6 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use itertools::Itertools;
 use crate::{ComponentIndex, ConstraintIndex, InputDataContextView, SignalIndex};
 
-pub struct SubComponentOutputNode {
-    // Component index
-    pub component: ComponentIndex,
-
-    // Inputs from this component that have not been fixed yet
-    pub not_yet_fixed_inputs: Vec<SignalIndex>,
-}
-
 #[allow(clippy::enum_variant_names)]
 pub enum Node {
     InputSignal,
@@ -17,7 +9,7 @@ pub enum Node {
     IntermediateSignal,
 
     SubComponentInputSignal(ComponentIndex),
-    SubComponentOutputSignal(SubComponentOutputNode),
+    SubComponentOutputSignal(ComponentIndex),
 }
 
 // TODO: Create a counterpart for SafeAssignment for components
@@ -47,8 +39,10 @@ pub struct UnsafeConstraint {
 
 // A subcomponent, which has input_signals and output_signals
 pub struct SubComponent {
-    pub input_signals: Vec<SignalIndex>,
-    pub output_signals: Vec<SignalIndex>,
+    pub input_signals: BTreeSet<SignalIndex>,
+    pub output_signals: BTreeSet<SignalIndex>,
+
+    pub not_yet_fixed_inputs: BTreeSet<SignalIndex>,
 }
 
 // NOTE: For reproducibility, I have declared the HashMaps as BTreeMap, so they are ordered.
@@ -65,6 +59,12 @@ pub struct VerificationGraph {
     //    the RHS of the assignment
     pub outgoing_safe_assignments: BTreeMap<SignalIndex, Vec<SafeAssignment>>,
 
+    // TODO: Safe Assignment and UnsafeConstraint have duplicate information for in several places.
+    //      We should centralize that information into a single container. The problem is that we
+    //      have to be able to remove items from that container, so the pointers/references/iterators
+    //      must be able to handle that. Maybe don't delete the constraints from SafeAssignment /
+    //      UnsafeConstraint storage? Just from the edge maps.
+
     // Given a node, it returns the list of all constraints '===' that are not a result of safe
     //    assignments '<==' in which this signal appears
     pub edge_constraints: BTreeMap<SignalIndex, Vec<UnsafeConstraint>>,
@@ -72,7 +72,7 @@ pub struct VerificationGraph {
     // Given a component index, it returns the SubComponent struct
     pub subcomponents: BTreeMap<ComponentIndex, SubComponent>,
 
-    //  List of nodes that have been fixed (proved to be unique) but not yet removed?
+    //  List of nodes that have been fixed (proved to be unique) but not yet removed from the graph
     pub fixed_nodes: BTreeSet<SignalIndex>,
 }
 
@@ -117,14 +117,14 @@ impl VerificationGraph {
 
         // Components
         for (cmp_index, c) in tree_constraints.subcomponents.iter().enumerate() {
-            let mut subcomponent_inputs = vec![];
-            let mut subcomponent_outputs = vec![];
+            let mut subcomponent_inputs = BTreeSet::new();
+            let mut subcomponent_outputs = BTreeSet::new();
             let component_index = c.node_id;
 
             // Subcomponent inputs
             for idx in 0..c.number_inputs {
                 let s = idx + c.number_outputs + c.initial_signal;
-                subcomponent_inputs.push(s);
+                subcomponent_inputs.insert(s);
                 nodes.insert(
                     s, Node::SubComponentInputSignal(component_index),
                 );
@@ -133,21 +133,20 @@ impl VerificationGraph {
             // Subcomponent outputs
             for idx in 0..c.number_outputs {
                 let s = idx + c.initial_signal;
-                subcomponent_outputs.push(s);
-
-                let sub_component_output_node = SubComponentOutputNode {
-                    component: cmp_index,
-                    not_yet_fixed_inputs: subcomponent_inputs.clone(),
-                };
+                subcomponent_outputs.insert(s);
 
                 nodes.insert(
-                    s, Node::SubComponentOutputSignal(sub_component_output_node),
+                    s, Node::SubComponentOutputSignal(cmp_index),
                 );
             }
 
             subcomponents.insert(
                 cmp_index,
-                SubComponent { input_signals: subcomponent_inputs, output_signals: subcomponent_outputs },
+                SubComponent {
+                    input_signals: subcomponent_inputs.clone(),
+                    output_signals: subcomponent_outputs,
+                    not_yet_fixed_inputs: subcomponent_inputs,
+                },
             );
         }
 
@@ -196,6 +195,10 @@ impl VerificationGraph {
                 });
             }
         }
+
+        // TODO: Compute fixed_nodes, which should include the inputs, safe assignments of only constants
+        //  (for example, i <== 2) and linear constraints with only one appearing signal and non-zero coefficient
+        //  (for example, 3*s===1). Maybe there are more to take into account?
 
         VerificationGraph {
             nodes,

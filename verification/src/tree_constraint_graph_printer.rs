@@ -109,6 +109,7 @@ fn construct_graphviz_graph_from_verification_graph(
     // Safe assignment double_arrow <== constraints
 
     for (lhs, ass) in &verification_graph.incoming_safe_assignments {
+        // TODO: Handle rhs_signals of length 0 (for example i <== 1).
         if ass.rhs_signals.len() == 1 {
             let rhs = ass.rhs_signals.iter().next().unwrap();
             // Only one source, create direct edge
@@ -141,10 +142,8 @@ fn construct_graphviz_graph_from_verification_graph(
         }
     }
 
-    // TODO: Handle unsafe constraints ===
+    // Handle unsafe constraints ===
     for c in verification_graph.get_unsafe_constraints() {
-        println!("{}: {:?}", c.associated_constraint, c.signals);
-
         if c.signals.len() == 1 {
             // Only one signal appears, make a loop
             let signal = c.signals.iter().next().unwrap();
@@ -202,7 +201,7 @@ pub fn print_verification_graph(
 
     // TODO: Remove println
     // Debug print of Graphviz code
-    let _s = print(g.clone(), &mut PrinterContext::default());
+    // let s = print(g.clone(), &mut PrinterContext::default());
     // println!("{}", s);
 
     let graph_svg = exec(g, &mut PrinterContext::default(), vec![Format::Svg.into()])?;
