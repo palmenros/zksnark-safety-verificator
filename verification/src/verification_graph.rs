@@ -1,7 +1,9 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet, LinkedList};
+use crate::{ComponentIndex, ConstraintIndex, InputDataContextView, print_verification_graph, SignalIndex};
+use circom_algebra::algebra::{ArithmeticExpression, Constraint, Substitution};
+use circom_algebra::constraint_storage::ConstraintStorage;
 use num_traits::Zero;
-use circom_algebra::algebra::{Constraint, Substitution};
-use crate::{ComponentIndex, ConstraintIndex, InputDataContextView, SignalIndex};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::path::Path;
 
 #[allow(clippy::enum_variant_names)]
 pub enum Node {
@@ -48,7 +50,6 @@ pub struct SubComponent {
 pub type SafeAssignmentIndex = usize;
 pub type UnsafeConstraintIndex = usize;
 
-
 // NOTE: For reproducibility, I have declared the HashMaps as BTreeMap, so they are ordered.
 //      Explore whether it's a good idea to change them to HashMap
 pub struct VerificationGraph {
@@ -78,16 +79,17 @@ pub struct VerificationGraph {
     // Elements in this vector should not be removed, because the indices would be invalidated.
     pub unsafe_constraints: Vec<UnsafeConstraint>,
 
-    pub substitutions: LinkedList<Substitution<usize>>,
-
     //  List of nodes that have been fixed (proved to be unique) but not yet removed from the graph
     pub fixed_nodes: BTreeSet<SignalIndex>,
-}
 
+    // Number of outputs that have not yet been fixed
+    pub number_of_outputs_not_yet_fixed: usize,
+}
 
 impl VerificationGraph {
     pub fn new(
         context: &InputDataContextView,
+        constraint_storage: &ConstraintStorage,
     ) -> VerificationGraph {
         let tree_constraints = context.tree_constraints;
 
@@ -97,9 +99,7 @@ impl VerificationGraph {
         // Outputs
         for idx in 0..tree_constraints.number_outputs {
             let s = idx + tree_constraints.initial_signal;
-            nodes.insert(
-                s, Node::OutputSignal,
-            );
+            nodes.insert(s, Node::OutputSignal);
         }
 
         let mut input_signals = BTreeSet::new();
@@ -107,14 +107,13 @@ impl VerificationGraph {
         // Inputs
         for idx in 0..tree_constraints.number_inputs {
             let s = idx + tree_constraints.number_outputs + tree_constraints.initial_signal;
-            nodes.insert(
-                s, Node::InputSignal,
-            );
+            nodes.insert(s, Node::InputSignal);
             input_signals.insert(s);
         }
 
         // Intermediates
-        let number_intermediates = tree_constraints.number_signals - tree_constraints.number_outputs
+        let number_intermediates = tree_constraints.number_signals
+            - tree_constraints.number_outputs
             - tree_constraints.number_inputs;
 
         for idx in 0..number_intermediates {
@@ -145,19 +144,14 @@ impl VerificationGraph {
             for idx in 0..c.number_inputs {
                 let s = idx + c.number_outputs + c.initial_signal;
                 subcomponent_inputs.insert(s);
-                nodes.insert(
-                    s, Node::SubComponentInputSignal(component_index),
-                );
+                nodes.insert(s, Node::SubComponentInputSignal(component_index));
             }
 
-            // Subcomponent outputs
             for idx in 0..c.number_outputs {
                 let s = idx + c.initial_signal;
                 subcomponent_outputs.insert(s);
 
-                nodes.insert(
-                    s, Node::SubComponentOutputSignal(cmp_index),
-                );
+                nodes.insert(s, Node::SubComponentOutputSignal(cmp_index));
             }
 
             subcomponents.insert(
@@ -171,7 +165,8 @@ impl VerificationGraph {
         }
 
         let mut incoming_safe_assignments = BTreeMap::<SignalIndex, SafeAssignmentIndex>::new();
-        let mut outgoing_safe_assignments = BTreeMap::<SignalIndex, BTreeSet<SafeAssignmentIndex>>::new();
+        let mut outgoing_safe_assignments =
+            BTreeMap::<SignalIndex, BTreeSet<SafeAssignmentIndex>>::new();
         let mut safe_assignments = vec![];
 
         let mut is_constraint_double_arrow = HashSet::new();
@@ -180,7 +175,10 @@ impl VerificationGraph {
         for (constraint, lhs_signal) in &tree_constraints.are_double_arrow {
             is_constraint_double_arrow.insert(*constraint);
 
-            let mut signals: BTreeSet<SignalIndex> = context.constraint_storage.read_constraint(*constraint).unwrap().take_cloned_signals_ordered();
+            let mut signals: BTreeSet<SignalIndex> = constraint_storage
+                .read_constraint(*constraint)
+                .unwrap()
+                .take_cloned_signals_ordered();
             signals.remove(lhs_signal);
 
             let safe_assignment = SafeAssignment {
@@ -195,27 +193,41 @@ impl VerificationGraph {
             incoming_safe_assignments.insert(*lhs_signal, safe_assignment_idx);
 
             // Outgoings
-            for rhs_signal in context.constraint_storage.read_constraint(*constraint).unwrap().take_signals() {
+            for rhs_signal in constraint_storage
+                .read_constraint(*constraint)
+                .unwrap()
+                .take_signals()
+            {
                 if rhs_signal != lhs_signal {
-                    outgoing_safe_assignments.entry(*rhs_signal).or_insert(BTreeSet::new()).insert(safe_assignment_idx);
+                    outgoing_safe_assignments
+                        .entry(*rhs_signal)
+                        .or_insert(BTreeSet::new())
+                        .insert(safe_assignment_idx);
                 }
             }
         }
 
-        let mut edge_constraints: BTreeMap<SignalIndex, BTreeSet<UnsafeConstraintIndex>> = BTreeMap::new();
+        let mut edge_constraints: BTreeMap<SignalIndex, BTreeSet<UnsafeConstraintIndex>> =
+            BTreeMap::new();
         let mut unsafe_constraints: Vec<UnsafeConstraint> = vec![];
 
         // Add unsafe edges
-        let constraints_range = tree_constraints.initial_constraint..(tree_constraints.initial_constraint + tree_constraints.no_constraints);
-        for (constraint_index, c) in constraints_range.filter(|idx| !is_constraint_double_arrow.contains(idx))
-            .map(|x| (x, context.constraint_storage.read_constraint(x).unwrap())) {
+        let constraints_range = tree_constraints.initial_constraint
+            ..(tree_constraints.initial_constraint + tree_constraints.no_constraints);
+        for (constraint_index, c) in constraints_range
+            .filter(|idx| !is_constraint_double_arrow.contains(idx))
+            .map(|x| (x, constraint_storage.read_constraint(x).unwrap()))
+        {
             let signals = c.take_cloned_signals_ordered();
 
             let unsafe_constraint_index = unsafe_constraints.len();
 
             for &signal in &signals {
                 // let vector: BTreeSet<SignalIndex> = signals.iter().filter(|x| **x != signal).copied().collect();
-                edge_constraints.entry(signal).or_insert(BTreeSet::new()).insert(unsafe_constraint_index);
+                edge_constraints
+                    .entry(signal)
+                    .or_insert(BTreeSet::new())
+                    .insert(unsafe_constraint_index);
             }
 
             unsafe_constraints.push(UnsafeConstraint {
@@ -238,11 +250,13 @@ impl VerificationGraph {
             propagate_fixed_node_in_safe_assignment(&mut fixed_nodes, ass);
         }
 
-        let substitutions = LinkedList::new();
-
         // Unsafe constraints ===
         for unsafe_constraint in &unsafe_constraints {
-            propagate_fixed_node_in_unsafe_constraint(context, &mut fixed_nodes, &substitutions, unsafe_constraint);
+            propagate_fixed_node_in_unsafe_constraint(
+                constraint_storage,
+                &mut fixed_nodes,
+                unsafe_constraint,
+            );
         }
 
         VerificationGraph {
@@ -253,9 +267,83 @@ impl VerificationGraph {
             subcomponents,
             safe_assignments,
             unsafe_constraints,
-            substitutions,
             fixed_nodes,
+            number_of_outputs_not_yet_fixed: tree_constraints.number_outputs,
         }
+    }
+
+    // This function will propagate the fixed_nodes through the different type of constraints by
+    // substituting the fixed value into all the appearing constraints, fixing
+    pub fn propagate_fixed_nodes(
+        &mut self,
+        context: &InputDataContextView,
+        constraint_storage: &mut ConstraintStorage,
+    ) {
+        // TODO: Study the order of the following
+
+        let mut it_num = 0;
+        while !self.fixed_nodes.is_empty() {
+            let node = self.fixed_nodes.pop_last().unwrap();
+            self.propagate_fixed_node(node, context, constraint_storage);
+
+            // TODO: Remove the following debug print
+            let base_path =
+                Path::new(r"C:\Users\pedro\Documents\dev\CircomVerification\test-artifacts\binsubtest");
+
+            print_verification_graph(
+                self,
+                context,
+                base_path.join(format!(r"svg/step-{}.svg", it_num)).as_path(),
+            ).unwrap();
+
+            it_num += 1;
+        }
+    }
+
+    // Propagate just one fixed_node.
+    fn propagate_fixed_node(
+        &mut self,
+        fixed_node: SignalIndex,
+        context: &InputDataContextView,
+        constraint_storage: &mut ConstraintStorage,
+    ) {
+        // 1. Check if this node is an output signal, and decrement the number of not_yet_fixed
+        //      signals if it is
+        if let Node::OutputSignal = self.nodes.get(&fixed_node).unwrap() {
+            self.number_of_outputs_not_yet_fixed -= 1;
+        }
+
+        // TODO: Review following assert. We should delete SafeAssignments if we want to be able to
+        //  make that assertion.
+        //assert!(self.incoming_safe_assignments.get(&fixed_node).is_none());
+
+
+        // TODO: 2. Substitute in constraints and propagate fixed_nodes through them
+
+        // 2.1 Safe assignments <==
+
+        if self.outgoing_safe_assignments.contains_key(&fixed_node) {
+            for ass_idx in &self.outgoing_safe_assignments[&fixed_node] {
+                let ass = &mut self.safe_assignments[*ass_idx];
+                substitute_witness_signal_into_storage(
+                    ass.associated_constraint,
+                    context,
+                    constraint_storage,
+                    fixed_node,
+                );
+                ass.rhs_signals.remove(&fixed_node);
+
+                // TODO: Maybe we can delete this incoming safe_assignment if this is the last?
+                //   Should we?
+                propagate_fixed_node_in_safe_assignment(&mut self.fixed_nodes, ass);
+            }
+        }
+
+        // TODO: 2.2 Unsafe constraints ===
+
+        // TODO: 2.3 SubComponents
+
+        // TODO: 3. Remove this node from the graph
     }
 
     // pub fn get_unsafe_constraints(&self) -> impl Iterator<Item=&UnsafeConstraint> {
@@ -263,9 +351,47 @@ impl VerificationGraph {
     // }
 }
 
+
+// TODO: Study when to apply substitutions. If we want to prove weak safety (only
+//  for one input) we could probably apply the substitutions one by one when fixing signals.
+//  We need to study the case of strong safety (for all inputs)
+
+
+//  Substitute the symbolic value of a signal by its witness value on the constraint_storage for a
+//   given constraint index.
+fn substitute_witness_signal_into_storage(
+    constraint_idx: ConstraintIndex,
+    context: &InputDataContextView,
+    constraint_storage: &mut ConstraintStorage,
+    fixed_signal: SignalIndex,
+) {
+    let mut constraint = constraint_storage.read_constraint(constraint_idx).unwrap();
+
+    let mut substitution_to_coefficients = HashMap::new();
+    substitution_to_coefficients.insert(
+        Constraint::constant_coefficient(),
+        context.witness[&fixed_signal].clone(),
+    );
+
+    let substitution = Substitution::<usize>::new(
+        fixed_signal,
+        ArithmeticExpression::Linear {
+            coefficients: substitution_to_coefficients,
+        },
+    )
+        .unwrap();
+
+    Constraint::apply_substitution(&mut constraint, &substitution, &context.field);
+
+    constraint_storage.replace(constraint_idx, constraint);
+}
+
 // This function checks a safe assignment. If all RHS values have been fixed, the LHS will
 // also be fixed. Called both on creation of the VerificationGraph and on fixed node propagation
-fn propagate_fixed_node_in_safe_assignment(fixed_nodes: &mut BTreeSet<SignalIndex>, assignment: &SafeAssignment) {
+fn propagate_fixed_node_in_safe_assignment(
+    fixed_nodes: &mut BTreeSet<SignalIndex>,
+    assignment: &SafeAssignment,
+) {
     // Fix the LHS of a '<==' assignment if the RHS does not have any signals (are constants)
     // TODO: Is this condition correct and complete for safe assignments?
     if assignment.rhs_signals.is_empty() {
@@ -275,42 +401,31 @@ fn propagate_fixed_node_in_safe_assignment(fixed_nodes: &mut BTreeSet<SignalInde
 
 // This function checks an unsafe constraint. If it only contains one unfixed signal, the constraint
 // is linear and its coefficient is non-zero, that signal will also be marked fixed.
-fn propagate_fixed_node_in_unsafe_constraint(context: &InputDataContextView, fixed_nodes: &mut BTreeSet<SignalIndex>,
-                                             substitutions: &LinkedList<Substitution<usize>>,
-                                             unsafe_constraint: &UnsafeConstraint) {
+fn propagate_fixed_node_in_unsafe_constraint(
+    constraint_storage: &ConstraintStorage,
+    fixed_nodes: &mut BTreeSet<SignalIndex>,
+    unsafe_constraint: &UnsafeConstraint,
+) {
     // Fix the only signal of a === constraint if it is the only signal, the constraint is
     // linear, and its coefficient is non-zero
     // TODO: Is this condition correct and complete for unsafe assignments?
 
     if unsafe_constraint.signals.len() == 1 {
         let signal = unsafe_constraint.signals.last().unwrap();
-        let constraint = context.constraint_storage.
-            read_constraint(unsafe_constraint.associated_constraint).unwrap();
+        let constraint = constraint_storage
+            .read_constraint(unsafe_constraint.associated_constraint)
+            .unwrap();
 
-        // TODO: Study when we need to apply this substitution. If we want to prove weak safety (only
+        // TODO: Study whether we need to apply a substitution. If we want to prove weak safety (only
         //  for one input) we could probably apply the substitutions one by one.
         //  We need to study the case of strong safety (for all inputs)
-        let substituted_constraint = apply_fixed_nodes_substitution(constraint, substitutions, context);
 
         // TODO: Check if this is the correct form to compute whether the constraint is linear
-        if Constraint::<usize>::is_linear(&substituted_constraint) {
-            let coefficient = substituted_constraint.c().get(signal).unwrap();
+        if Constraint::<usize>::is_linear(&constraint) {
+            let coefficient = constraint.c().get(signal).unwrap();
             if !coefficient.is_zero() {
                 fixed_nodes.insert(*signal);
             }
         }
     }
-}
-
-// TODO: Study when to apply substitutions. If we want to prove weak safety (only
-//  for one input) we could probably apply the substitutions one by one when fixing signals.
-//  We need to study the case of strong safety (for all inputs)
-fn apply_fixed_nodes_substitution(mut constraint: Constraint<usize>, substitutions: &LinkedList<Substitution<usize>>, context: &InputDataContextView) -> Constraint<usize> {
-    // TODO: Check if this implementation is correct
-
-    for substitution in substitutions {
-        Constraint::apply_substitution(&mut constraint, substitution, &context.field);
-    }
-
-    constraint
 }

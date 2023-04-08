@@ -7,12 +7,9 @@ use serde_json::Value;
 use std::error::Error;
 use std::fs::File;
 use std::io::BufRead;
-use std::path::{Path};
-use std::{
-    collections::{HashMap},
-    io,
-};
+use std::path::Path;
 use std::str::FromStr;
+use std::{collections::HashMap, io};
 
 fn parse_constraint_list(path: &Path) -> Result<ConstraintStorage, Box<dyn Error>> {
     let f = File::open(path)?;
@@ -41,19 +38,21 @@ fn parse_constraint_list(path: &Path) -> Result<ConstraintStorage, Box<dyn Error
 
         let maybe_cs: Result<Vec<_>, _> = arr
             .iter()
-            .map(|x| -> Result<HashMap<SignalIndex, BigInt>, Box<dyn Error>> {
-                let m = x
-                    .as_object()
-                    .ok_or("Constraint in 'constraint.json' has a non-object")?;
-                m.iter()
-                    .map(|(k, v)| -> Result<(SignalIndex, BigInt), Box<dyn Error>> {
-                        let s = v
-                            .as_str()
-                            .ok_or("Coefficient in 'constraint.json' is not a string")?;
-                        Ok((k.parse::<usize>()?, s.parse::<BigInt>()?))
-                    })
-                    .collect()
-            })
+            .map(
+                |x| -> Result<HashMap<SignalIndex, BigInt>, Box<dyn Error>> {
+                    let m = x
+                        .as_object()
+                        .ok_or("Constraint in 'constraint.json' has a non-object")?;
+                    m.iter()
+                        .map(|(k, v)| -> Result<(SignalIndex, BigInt), Box<dyn Error>> {
+                            let s = v
+                                .as_str()
+                                .ok_or("Coefficient in 'constraint.json' is not a string")?;
+                            Ok((k.parse::<usize>()?, s.parse::<BigInt>()?))
+                        })
+                        .collect()
+                },
+            )
             .collect();
 
         let (a, b, c) = maybe_cs?.into_iter().collect_tuple().unwrap();
@@ -64,7 +63,7 @@ fn parse_constraint_list(path: &Path) -> Result<ConstraintStorage, Box<dyn Error
 }
 
 pub type ConstraintIndex = usize;
-pub type Witness = HashMap<ConstraintIndex, BigInt>;
+pub type Witness = HashMap<SignalIndex, BigInt>;
 
 fn parse_witness(path: &Path) -> Result<Witness, Box<dyn Error>> {
     let f = File::open(path)?;
@@ -136,14 +135,12 @@ fn parse_tree_constraints(path: &Path) -> Result<TreeConstraints, Box<dyn Error>
 }
 
 pub struct InputDataContext {
-    pub constraint_storage: ConstraintStorage,
     pub witness: Witness,
     pub signal_name_map: SignalNameMap,
     pub tree_constraints: TreeConstraints,
 }
 
 pub struct InputDataContextView<'a> {
-    pub constraint_storage: &'a ConstraintStorage,
     pub witness: &'a Witness,
     pub signal_name_map: &'a SignalNameMap,
     pub tree_constraints: &'a TreeConstraints,
@@ -152,25 +149,29 @@ pub struct InputDataContextView<'a> {
 
 impl InputDataContext {
     //noinspection SpellCheckingInspection
-    pub fn parse_from_files(folder_base_path: &Path) -> Result<InputDataContext, Box<dyn Error>> {
-        let constraint_storage = parse_constraint_list(folder_base_path.join("circuit_constraints.json").as_path())?;
+    pub fn parse_from_files(folder_base_path: &Path) -> Result<(InputDataContext, ConstraintStorage), Box<dyn Error>> {
+        let constraint_storage =
+            parse_constraint_list(folder_base_path.join("circuit_constraints.json").as_path())?;
         let witness = parse_witness(folder_base_path.join("witness.json").as_path())?;
-        let signal_name_map = parse_signal_name_map(folder_base_path.join("circuit_signals.sym").as_path())?;
-        let tree_constraints = parse_tree_constraints(folder_base_path.join("circuit_treeconstraints.json").as_path())?;
+        let signal_name_map =
+            parse_signal_name_map(folder_base_path.join("circuit_signals.sym").as_path())?;
+        let tree_constraints = parse_tree_constraints(
+            folder_base_path
+                .join("circuit_treeconstraints.json")
+                .as_path(),
+        )?;
 
-        Ok(InputDataContext {
-            constraint_storage,
+        Ok((InputDataContext {
             witness,
             signal_name_map,
             tree_constraints,
-        })
+        }, constraint_storage))
     }
 
     pub fn get_context_view(&self) -> InputDataContextView {
         // TODO: Update how to get field when using another .json
         let field = BigInt::from_str(self.tree_constraints.field.as_str()).unwrap();
         InputDataContextView {
-            constraint_storage: &self.constraint_storage,
             witness: &self.witness,
             signal_name_map: &self.signal_name_map,
             tree_constraints: &self.tree_constraints,
@@ -185,7 +186,6 @@ impl<'a> InputDataContextView<'a> {
         // TODO: Update how to get field when using another .json
         let field = BigInt::from_str(self.tree_constraints.field.as_str()).unwrap();
         InputDataContextView {
-            constraint_storage: self.constraint_storage,
             witness: self.witness,
             signal_name_map: self.signal_name_map,
             tree_constraints: self.tree_constraints.subcomponents.get(idx).unwrap(),
@@ -198,7 +198,8 @@ impl<'a> InputDataContextView<'a> {
         let number_inputs = self.tree_constraints.number_inputs;
         let number_outputs = self.tree_constraints.number_outputs;
 
-        signal >= initial_signal + number_outputs && signal < initial_signal + number_outputs + number_inputs
+        signal >= initial_signal + number_outputs
+            && signal < initial_signal + number_outputs + number_inputs
     }
 }
 
