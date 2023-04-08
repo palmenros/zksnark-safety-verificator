@@ -86,7 +86,7 @@ pub struct VerificationGraph {
 
 
 impl VerificationGraph {
-    pub fn create(
+    pub fn new(
         context: &InputDataContextView,
     ) -> VerificationGraph {
         let tree_constraints = context.tree_constraints;

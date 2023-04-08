@@ -22,10 +22,13 @@ fn construct_graphviz_graph_from_verification_graph(
 
     // Nodes
 
-    for (s, node) in verification_graph.nodes.iter().filter(|(_, n)| matches!(**n, VNode::InputSignal | VNode::OutputSignal | VNode::IntermediateSignal)) {
-        // TODO: Draw differently if node is in verification_graph.fixed_nodes
+    // Extra-style attributes for already fixed nodes
+    let fixed_attrs = vec![attr!("style", "filled"),
+                           attr!("fillcolor", "firebrick4"),
+                           attr!("fontcolor", "white")];
 
-        let attrs = match node {
+    for (s, node) in verification_graph.nodes.iter().filter(|(_, n)| matches!(**n, VNode::InputSignal | VNode::OutputSignal | VNode::IntermediateSignal)) {
+        let mut attrs = match node {
             VNode::InputSignal | VNode::OutputSignal => vec![
                 attr!("label", esc context.signal_name_map.get(s).unwrap()),
                 attr!("color", "orange"),
@@ -37,6 +40,11 @@ fn construct_graphviz_graph_from_verification_graph(
 
             _ => unreachable!(),
         };
+
+        // Add style if this node has been fixed
+        if verification_graph.fixed_nodes.contains(s) {
+            attrs.append(&mut fixed_attrs.clone());
+        }
 
         g.add_stmt(Stmt::Node(
             node!(s.to_string(), attrs)

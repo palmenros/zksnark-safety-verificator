@@ -21,10 +21,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let context = InputDataContext::parse_from_files(base_path)?;
     let global_context_view = context.get_context_view();
 
-    // let context_view = global_context_view;
-    let context_view = global_context_view.get_subcomponent_context_view(1);
+    let context_view = global_context_view;
+    // let context_view = global_context_view.get_subcomponent_context_view(3);
 
-    let verification_graph = VerificationGraph::create(&context_view);
+    let verification_graph = VerificationGraph::new(&context_view);
     print_verification_graph(&verification_graph, &context_view, base_path.join("components.svg").as_path())?;
 
     Ok(())
