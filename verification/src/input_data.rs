@@ -12,6 +12,7 @@ use std::{
     collections::{HashMap},
     io,
 };
+use std::str::FromStr;
 
 fn parse_constraint_list(path: &Path) -> Result<ConstraintStorage, Box<dyn Error>> {
     let f = File::open(path)?;
@@ -146,6 +147,7 @@ pub struct InputDataContextView<'a> {
     pub witness: &'a Witness,
     pub signal_name_map: &'a SignalNameMap,
     pub tree_constraints: &'a TreeConstraints,
+    pub field: BigInt,
 }
 
 impl InputDataContext {
@@ -165,11 +167,14 @@ impl InputDataContext {
     }
 
     pub fn get_context_view(&self) -> InputDataContextView {
+        // TODO: Update how to get field when using another .json
+        let field = BigInt::from_str(self.tree_constraints.field.as_str()).unwrap();
         InputDataContextView {
             constraint_storage: &self.constraint_storage,
             witness: &self.witness,
             signal_name_map: &self.signal_name_map,
             tree_constraints: &self.tree_constraints,
+            field,
         }
     }
 }
@@ -177,11 +182,14 @@ impl InputDataContext {
 /* Represents a view of the context. tree_constraints might be a subcomponent instead of main component */
 impl<'a> InputDataContextView<'a> {
     pub fn get_subcomponent_context_view(&self, idx: ComponentIndex) -> InputDataContextView {
+        // TODO: Update how to get field when using another .json
+        let field = BigInt::from_str(self.tree_constraints.field.as_str()).unwrap();
         InputDataContextView {
             constraint_storage: self.constraint_storage,
             witness: self.witness,
             signal_name_map: self.signal_name_map,
             tree_constraints: self.tree_constraints.subcomponents.get(idx).unwrap(),
+            field,
         }
     }
 

@@ -238,9 +238,11 @@ impl VerificationGraph {
             propagate_fixed_node_in_safe_assignment(&mut fixed_nodes, ass);
         }
 
+        let substitutions = LinkedList::new();
+
         // Unsafe constraints ===
         for unsafe_constraint in &unsafe_constraints {
-            propagate_fixed_node_in_unsafe_constraint(context, &mut fixed_nodes, unsafe_constraint);
+            propagate_fixed_node_in_unsafe_constraint(context, &mut fixed_nodes, &substitutions, unsafe_constraint);
         }
 
         VerificationGraph {
@@ -251,11 +253,11 @@ impl VerificationGraph {
             subcomponents,
             safe_assignments,
             unsafe_constraints,
-            substitutions: LinkedList::new(),
+            substitutions,
             fixed_nodes,
         }
     }
-    
+
     // pub fn get_unsafe_constraints(&self) -> impl Iterator<Item=&UnsafeConstraint> {
     //     self.unsafe_constraints.iter()
     // }
@@ -272,8 +274,9 @@ fn propagate_fixed_node_in_safe_assignment(fixed_nodes: &mut BTreeSet<SignalInde
 }
 
 // This function checks an unsafe constraint. If it only contains one unfixed signal, the constraint
-// is linear and its coefficient is non-zero, that signal will also be marked fixxed.
+// is linear and its coefficient is non-zero, that signal will also be marked fixed.
 fn propagate_fixed_node_in_unsafe_constraint(context: &InputDataContextView, fixed_nodes: &mut BTreeSet<SignalIndex>,
+                                             substitutions: &LinkedList<Substitution<usize>>,
                                              unsafe_constraint: &UnsafeConstraint) {
     // Fix the only signal of a === constraint if it is the only signal, the constraint is
     // linear, and its coefficient is non-zero
@@ -284,7 +287,10 @@ fn propagate_fixed_node_in_unsafe_constraint(context: &InputDataContextView, fix
         let constraint = context.constraint_storage.
             read_constraint(unsafe_constraint.associated_constraint).unwrap();
 
-        let substituted_constraint = apply_fixed_nodes_substitution(constraint);
+        // TODO: Study when we need to apply this substitution. If we want to prove weak safety (only
+        //  for one input) we could probably apply the substitutions one by one.
+        //  We need to study the case of strong safety (for all inputs)
+        let substituted_constraint = apply_fixed_nodes_substitution(constraint, substitutions, context);
 
         // TODO: Check if this is the correct form to compute whether the constraint is linear
         if Constraint::<usize>::is_linear(&substituted_constraint) {
@@ -296,7 +302,15 @@ fn propagate_fixed_node_in_unsafe_constraint(context: &InputDataContextView, fix
     }
 }
 
-fn apply_fixed_nodes_substitution(constraint: Constraint<usize>) -> Constraint<usize> {
-    // TODO: Complete
-    todo!()
+// TODO: Study when to apply substitutions. If we want to prove weak safety (only
+//  for one input) we could probably apply the substitutions one by one when fixing signals.
+//  We need to study the case of strong safety (for all inputs)
+fn apply_fixed_nodes_substitution(mut constraint: Constraint<usize>, substitutions: &LinkedList<Substitution<usize>>, context: &InputDataContextView) -> Constraint<usize> {
+    // TODO: Check if this implementation is correct
+
+    for substitution in substitutions {
+        Constraint::apply_substitution(&mut constraint, substitution, &context.field);
+    }
+
+    constraint
 }
