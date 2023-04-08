@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use itertools::Itertools;
 use crate::{ComponentIndex, ConstraintIndex, InputDataContextView, SignalIndex};
 
 #[allow(clippy::enum_variant_names)]
@@ -45,6 +44,9 @@ pub struct SubComponent {
     pub not_yet_fixed_inputs: BTreeSet<SignalIndex>,
 }
 
+pub type SafeAssignmentIndex = usize;
+pub type UnsafeConstraintIndex = usize;
+
 // NOTE: For reproducibility, I have declared the HashMaps as BTreeMap, so they are ordered.
 //      Explore whether it's a good idea to change them to HashMap
 pub struct VerificationGraph {
@@ -53,24 +55,26 @@ pub struct VerificationGraph {
 
     // Given a node, it returns the list of safe assignments '<==' in which this signal is part of
     //    the LHS of the assignment
-    pub incoming_safe_assignments: BTreeMap<SignalIndex, SafeAssignment>,
+    pub incoming_safe_assignments: BTreeMap<SignalIndex, SafeAssignmentIndex>,
 
     // Given a node, it returns the list of safe assignments '<==' in which this signal is part of
     //    the RHS of the assignment
-    pub outgoing_safe_assignments: BTreeMap<SignalIndex, Vec<SafeAssignment>>,
-
-    // TODO: Safe Assignment and UnsafeConstraint have duplicate information for in several places.
-    //      We should centralize that information into a single container. The problem is that we
-    //      have to be able to remove items from that container, so the pointers/references/iterators
-    //      must be able to handle that. Maybe don't delete the constraints from SafeAssignment /
-    //      UnsafeConstraint storage? Just from the edge maps.
-
+    pub outgoing_safe_assignments: BTreeMap<SignalIndex, BTreeSet<SafeAssignmentIndex>>,
+    
     // Given a node, it returns the list of all constraints '===' that are not a result of safe
     //    assignments '<==' in which this signal appears
-    pub edge_constraints: BTreeMap<SignalIndex, Vec<UnsafeConstraint>>,
+    pub edge_constraints: BTreeMap<SignalIndex, BTreeSet<UnsafeConstraintIndex>>,
 
     // Given a component index, it returns the SubComponent struct
     pub subcomponents: BTreeMap<ComponentIndex, SubComponent>,
+
+    // List of all safe_assignments (<==). Edges only have indices into this vector.
+    // Elements in this vector should not be removed, because the indices would be invalidated.
+    pub safe_assignments: Vec<SafeAssignment>,
+
+    // List of all unsafe_constraints (===). Edges only have indices into this vector.
+    // Elements in this vector should not be removed, because the indices would be invalidated.
+    pub unsafe_constraints: Vec<UnsafeConstraint>,
 
     //  List of nodes that have been fixed (proved to be unique) but not yet removed from the graph
     pub fixed_nodes: BTreeSet<SignalIndex>,
@@ -150,8 +154,9 @@ impl VerificationGraph {
             );
         }
 
-        let mut incoming_safe_assignments = BTreeMap::<SignalIndex, SafeAssignment>::new();
-        let mut outgoing_safe_assignments = BTreeMap::<SignalIndex, Vec<SafeAssignment>>::new();
+        let mut incoming_safe_assignments = BTreeMap::<SignalIndex, SafeAssignmentIndex>::new();
+        let mut outgoing_safe_assignments = BTreeMap::<SignalIndex, BTreeSet<SafeAssignmentIndex>>::new();
+        let mut safe_assignments = vec![];
 
         let mut is_constraint_double_arrow = HashSet::new();
 
@@ -169,17 +174,21 @@ impl VerificationGraph {
                 associated_constraint: *constraint,
             };
 
-            incoming_safe_assignments.insert(*lhs_signal, safe_assignment.clone());
+            let safe_assignment_idx = safe_assignments.len();
+            safe_assignments.push(safe_assignment);
+
+            incoming_safe_assignments.insert(*lhs_signal, safe_assignment_idx);
 
             // Outgoings
             for rhs_signal in context.constraint_storage.read_constraint(*constraint).unwrap().take_signals() {
                 if rhs_signal != lhs_signal {
-                    outgoing_safe_assignments.entry(*rhs_signal).or_insert(vec![]).push(safe_assignment.clone());
+                    outgoing_safe_assignments.entry(*rhs_signal).or_insert(BTreeSet::new()).insert(safe_assignment_idx);
                 }
             }
         }
 
-        let mut edge_constraints: BTreeMap<SignalIndex, Vec<UnsafeConstraint>> = BTreeMap::new();
+        let mut edge_constraints: BTreeMap<SignalIndex, BTreeSet<UnsafeConstraintIndex>> = BTreeMap::new();
+        let mut unsafe_constraints: Vec<UnsafeConstraint> = vec![];
 
         // Add unsafe edges
         let constraints_range = tree_constraints.initial_constraint..(tree_constraints.initial_constraint + tree_constraints.no_constraints);
@@ -187,13 +196,17 @@ impl VerificationGraph {
             .map(|x| (x, context.constraint_storage.read_constraint(x).unwrap())) {
             let signals = c.take_cloned_signals_ordered();
 
+            let unsafe_constraint_index = unsafe_constraints.len();
+
             for &signal in &signals {
                 // let vector: BTreeSet<SignalIndex> = signals.iter().filter(|x| **x != signal).copied().collect();
-                edge_constraints.entry(signal).or_insert(vec![]).push(UnsafeConstraint {
-                    signals: signals.clone(),
-                    associated_constraint: constraint_index,
-                });
+                edge_constraints.entry(signal).or_insert(BTreeSet::new()).insert(unsafe_constraint_index);
             }
+
+            unsafe_constraints.push(UnsafeConstraint {
+                signals,
+                associated_constraint: constraint_index,
+            });
         }
 
         // TODO: Compute fixed_nodes, which should include the inputs, safe assignments of only constants
@@ -206,11 +219,13 @@ impl VerificationGraph {
             outgoing_safe_assignments,
             edge_constraints,
             subcomponents,
+            safe_assignments,
+            unsafe_constraints,
             fixed_nodes: BTreeSet::new(),
         }
     }
 
-    pub fn get_unsafe_constraints(&self) -> impl Iterator<Item=&UnsafeConstraint> {
-        self.edge_constraints.values().flatten().unique_by(|x| x.associated_constraint)
-    }
+    // pub fn get_unsafe_constraints(&self) -> impl Iterator<Item=&UnsafeConstraint> {
+    //     self.unsafe_constraints.iter()
+    // }
 }

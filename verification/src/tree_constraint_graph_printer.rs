@@ -2,7 +2,7 @@ use graphviz_rust::cmd::Format;
 use graphviz_rust::dot_generator::*;
 use graphviz_rust::dot_structures::*;
 use graphviz_rust::printer::{PrinterContext};
-use graphviz_rust::{exec, print};
+use graphviz_rust::{exec};
 use std::error::Error;
 use std::fs::File;
 use std::io::Write;
@@ -108,7 +108,8 @@ fn construct_graphviz_graph_from_verification_graph(
 
     // Safe assignment double_arrow <== constraints
 
-    for (lhs, ass) in &verification_graph.incoming_safe_assignments {
+    for ass in &verification_graph.safe_assignments {
+        let lhs = ass.lhs_signal;
         // TODO: Handle rhs_signals of length 0 (for example i <== 1).
         if ass.rhs_signals.len() == 1 {
             let rhs = ass.rhs_signals.iter().next().unwrap();
@@ -143,7 +144,7 @@ fn construct_graphviz_graph_from_verification_graph(
     }
 
     // Handle unsafe constraints ===
-    for c in verification_graph.get_unsafe_constraints() {
+    for c in &verification_graph.unsafe_constraints {
         if c.signals.len() == 1 {
             // Only one signal appears, make a loop
             let signal = c.signals.iter().next().unwrap();
