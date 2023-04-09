@@ -6,19 +6,22 @@ use std::hash::Hash;
 pub type CID = usize;
 
 pub struct ConstantTracker<C>
-    where
-        C: Hash,
+where
+    C: Hash,
 {
     lookup: HashMap<C, CID>,
     constants: Vec<C>,
 }
 
 impl<C> ConstantTracker<C>
-    where
-        C: Eq + Hash + Clone,
+where
+    C: Eq + Hash + Clone,
 {
     pub fn new() -> ConstantTracker<C> {
-        ConstantTracker { lookup: HashMap::new(), constants: Vec::new() }
+        ConstantTracker {
+            lookup: HashMap::new(),
+            constants: Vec::new(),
+        }
     }
 
     pub fn get_id(&self, constant: &C) -> Option<CID> {

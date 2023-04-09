@@ -11,6 +11,13 @@ use crate::verification_graph::VerificationGraph;
 use std::error::Error;
 use std::path::Path;
 
+// TODO: We should add an option for the user to prove strong safety for all inputs for a module
+//  that has === constraints (and therefore only handle the rest of the modules using our local
+//  algorithm)
+
+// TODO: We should apply some heuristics for quickly verifying modules without === constraints,
+//  such as the one published in Circom paper
+
 fn main() -> Result<(), Box<dyn Error>> {
     let base_path =
         Path::new(r"C:\Users\pedro\Documents\dev\CircomVerification\test-artifacts\binsubtest");
@@ -32,10 +39,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         base_path.join("svg/components.svg").as_path(),
     )?;
 
-    verification_graph.propagate_fixed_nodes(
-        &context_view,
-        &mut constraint_storage,
-    );
+    verification_graph.propagate_fixed_nodes(&context_view, &mut constraint_storage);
 
     Ok(())
 }

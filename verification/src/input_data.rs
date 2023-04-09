@@ -149,7 +149,9 @@ pub struct InputDataContextView<'a> {
 
 impl InputDataContext {
     //noinspection SpellCheckingInspection
-    pub fn parse_from_files(folder_base_path: &Path) -> Result<(InputDataContext, ConstraintStorage), Box<dyn Error>> {
+    pub fn parse_from_files(
+        folder_base_path: &Path,
+    ) -> Result<(InputDataContext, ConstraintStorage), Box<dyn Error>> {
         let constraint_storage =
             parse_constraint_list(folder_base_path.join("circuit_constraints.json").as_path())?;
         let witness = parse_witness(folder_base_path.join("witness.json").as_path())?;
@@ -161,11 +163,14 @@ impl InputDataContext {
                 .as_path(),
         )?;
 
-        Ok((InputDataContext {
-            witness,
-            signal_name_map,
-            tree_constraints,
-        }, constraint_storage))
+        Ok((
+            InputDataContext {
+                witness,
+                signal_name_map,
+                tree_constraints,
+            },
+            constraint_storage,
+        ))
     }
 
     pub fn get_context_view(&self) -> InputDataContextView {

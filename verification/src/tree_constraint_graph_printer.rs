@@ -34,7 +34,6 @@ fn construct_graphviz_graph_from_verification_graph(
             VNode::InputSignal | VNode::OutputSignal | VNode::IntermediateSignal
         )
     }) {
-        // TODO: Fix rendering of fixed_nodes
         let mut attrs = match node {
             VNode::InputSignal | VNode::OutputSignal => vec![
                 attr!("label", esc context.signal_name_map.get(s).unwrap()),
@@ -84,19 +83,28 @@ fn construct_graphviz_graph_from_verification_graph(
     for (cmp_index, c) in &verification_graph.subcomponents {
         let mut v = Vec::<Stmt>::new();
 
+        // We will only draw edges inside the component if there are both inputs and outputs.
+        // A component may not have inputs or outputs if they have been previously fixed and deleted.
+        let should_draw_edges = !c.input_signals.is_empty() && !c.output_signals.is_empty();
+
         // Add subcomponent inputs and outputs
 
         let dummy_node_str = format!("dummy_{cmp_index}");
 
-        // Dummy point for edges
-        v.push(Stmt::Node(node!(dummy_node_str;
+        if should_draw_edges {
+            // Dummy point for edges
+            v.push(Stmt::Node(node!(dummy_node_str;
             attr!("shape", "point"),
             attr!("fontname", "Courier")
             // attr!("xlabel", "Component")
-        )));
+            )));
+        }
 
         for output in &c.output_signals {
-            let mut attrs = vec![attr!("label", esc context.signal_name_map.get(output).unwrap()), attr!("color", "blue")];
+            let mut attrs = vec![
+                attr!("label", esc context.signal_name_map.get(output).unwrap()),
+                attr!("color", "blue"),
+            ];
 
             // Add style if this node has been fixed
             if verification_graph.fixed_nodes.contains(output) {
@@ -104,22 +112,31 @@ fn construct_graphviz_graph_from_verification_graph(
             }
 
             v.push(Stmt::Node(node!(output.to_string(), attrs)));
-            v.push(Stmt::Edge(
-                edge!(node_id!(dummy_node_str) => node_id!(output.to_string())),
-            ));
+
+            if should_draw_edges {
+                v.push(Stmt::Edge(
+                    edge!(node_id!(dummy_node_str) => node_id!(output.to_string())),
+                ));
+            }
         }
 
         for input in &c.input_signals {
-            let mut attrs = vec![attr!("label", esc context.signal_name_map.get(input).unwrap()), attr!("color", "green")];
+            let mut attrs = vec![
+                attr!("label", esc context.signal_name_map.get(input).unwrap()),
+                attr!("color", "green"),
+            ];
             // Add style if this node has been fixed
             if verification_graph.fixed_nodes.contains(input) {
                 attrs.append(&mut fixed_attrs.clone());
             }
 
             v.push(Stmt::Node(node!(input.to_string(), attrs)));
-            v.push(Stmt::Edge(
-                edge!(node_id!(input.to_string()) => node_id!(dummy_node_str); attr!("dir", "none")),
-            ));
+
+            if should_draw_edges {
+                v.push(Stmt::Edge(
+                    edge!(node_id!(input.to_string()) => node_id!(dummy_node_str); attr!("dir", "none")),
+                ));
+            }
         }
 
         let subgraph_id = format!("cluster_{cmp_index}");
@@ -157,6 +174,10 @@ fn construct_graphviz_graph_from_verification_graph(
     // Safe assignment double_arrow <== constraints
 
     for ass in &verification_graph.safe_assignments {
+        if !ass.active {
+            continue;
+        }
+
         let lhs = ass.lhs_signal;
         // TODO: Handle rhs_signals of length 0 (for example i <== 1).
         if ass.rhs_signals.len() == 1 {
@@ -193,6 +214,10 @@ fn construct_graphviz_graph_from_verification_graph(
 
     // Handle unsafe constraints ===
     for c in &verification_graph.unsafe_constraints {
+        if !c.active {
+            continue;
+        }
+
         if c.signals.len() == 1 {
             // Only one signal appears, make a loop
             let signal = c.signals.iter().next().unwrap();
@@ -208,7 +233,8 @@ fn construct_graphviz_graph_from_verification_graph(
             //          draw the inner point?
 
             let tmp_node_str = format!("constraint_{}", c.associated_constraint);
-            // TODO: Find a way to label the point with ===
+
+            // TODO: Find a better way to label the point with ===
             g.add_stmt(Stmt::Node(node!(
                 tmp_node_str;
                 attr!("shape", "point"),
@@ -247,7 +273,7 @@ pub fn print_verification_graph(
 
     // TODO: Remove println
     // Debug print of Graphviz code
-    // let s = print(g.clone(), &mut PrinterContext::default());
+    // let s = graphviz_rust::print(g.clone(), &mut PrinterContext::default());
     // println!("{}", s);
 
     let graph_svg = exec(g, &mut PrinterContext::default(), vec![Format::Svg.into()])?;
