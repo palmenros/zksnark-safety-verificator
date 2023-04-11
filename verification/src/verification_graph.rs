@@ -459,6 +459,9 @@ fn substitute_witness_signal_into_storage(
 
     Constraint::apply_substitution(&mut constraint, &substitution, &context.field);
 
+    // TODO: Check that we are doing a correct normalization
+    Constraint::fix_constraint(&mut constraint, &context.field);
+
     constraint_storage.replace(constraint_idx, constraint);
 }
 
