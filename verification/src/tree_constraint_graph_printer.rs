@@ -6,6 +6,7 @@ use graphviz_rust::dot_structures::*;
 use graphviz_rust::exec;
 use graphviz_rust::printer::PrinterContext;
 use std::error::Error;
+use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
@@ -278,6 +279,7 @@ pub fn print_verification_graph(
 
     let graph_svg = exec(g, &mut PrinterContext::default(), vec![Format::Svg.into()])?;
 
+    fs::create_dir_all(path.parent().unwrap())?;
     let mut f = File::create(path)?;
     f.write_all(graph_svg.as_bytes())?;
 

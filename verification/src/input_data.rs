@@ -138,6 +138,7 @@ pub struct InputDataContext {
     pub witness: Witness,
     pub signal_name_map: SignalNameMap,
     pub tree_constraints: TreeConstraints,
+    pub base_path: String,
 }
 
 pub struct InputDataContextView<'a> {
@@ -145,6 +146,7 @@ pub struct InputDataContextView<'a> {
     pub signal_name_map: &'a SignalNameMap,
     pub tree_constraints: &'a TreeConstraints,
     pub field: BigInt,
+    pub base_path: &'a String,
 }
 
 impl InputDataContext {
@@ -168,6 +170,7 @@ impl InputDataContext {
                 witness,
                 signal_name_map,
                 tree_constraints,
+                base_path: folder_base_path.to_str().unwrap().to_string(),
             },
             constraint_storage,
         ))
@@ -181,6 +184,7 @@ impl InputDataContext {
             signal_name_map: &self.signal_name_map,
             tree_constraints: &self.tree_constraints,
             field,
+            base_path: &self.base_path,
         }
     }
 }
@@ -195,6 +199,7 @@ impl<'a> InputDataContextView<'a> {
             signal_name_map: self.signal_name_map,
             tree_constraints: self.tree_constraints.subcomponents.get(idx).unwrap(),
             field,
+            base_path: self.base_path,
         }
     }
 

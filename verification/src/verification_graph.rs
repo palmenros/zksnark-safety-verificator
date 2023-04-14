@@ -301,9 +301,90 @@ impl VerificationGraph {
         }
     }
 
+    pub fn verify(
+        &mut self,
+        context: &InputDataContextView,
+        constraint_storage: &mut ConstraintStorage,
+    ) {
+        // TODO: Maybe there are some easy. common, special cases to consider before executing
+        //          the full algorithm.
+
+        // TODO: Return a tree of VerificationOutputs if everything has been verified.
+        //      The tree should contain for each component the list of subcomponents that need to
+        //      be verified and contain a list of Groebner Basis systems to be solved in addition
+        //      to all subcomponents for that component to be verified
+
+        loop {
+            self.propagate_fixed_nodes(context, constraint_storage);
+
+            if self.number_of_outputs_not_yet_fixed == 0 {
+                // Verification complete, next subcomponents
+                // TODO: Record list of subcomponents to verify in some sort of tree structure
+                //  and return it
+                println!("Complete");
+                return;
+            }
+
+            // TODO: If there are no === constraints remaining, then the unfixed outputs will remain unfixed
+
+            let is_there_any_unsafe_constraint_remaining =
+                self.edge_constraints.iter().any(|(_, set)| !set.is_empty());
+
+            if !is_there_any_unsafe_constraint_remaining {
+                let unsafe_outputs = self
+                    .nodes
+                    .iter()
+                    .filter(|(_, n)| matches!(n, Node::OutputSignal))
+                    .map(|(signal_index, _)| signal_index);
+
+                for signal_index in unsafe_outputs {
+                    println!(
+                        "Output '{}' of component '{}', template '{}' is never fixed from inputs!",
+                        context.signal_name_map[signal_index], context.tree_constraints.component_name,
+                        context.tree_constraints.template_name
+                    );
+                }
+                // TODO: Format the unsafe outputs correctly
+                println!("Unsafe!");
+
+                return;
+            }
+
+            // TODO: Else, if there are === constraints remaining, we should merge all === constraint
+            //  cycles until there are no more connected components that can be merged
+            let did_merge = self.merge_unsafe_constraints_connected_component(context);
+            if !did_merge {
+                // There is some cyclic dependencies between the different === constraints connected
+                //  components, abort
+
+                // TODO: Maybe use some heuristic to make a bigger connected component?
+                println!("Cannot determine, cyclic dependencies between === constraints");
+                return;
+            }
+        }
+    }
+
+    // This function looks for a connected of === constraints that can be reduced using Groebner
+    //  bases. Returns true if it has been able to merge such a connected component, false otherwise
+    fn merge_unsafe_constraints_connected_component(
+        &mut self,
+        context: &InputDataContextView,
+    ) -> bool {
+
+        // TODO: Look for a connected component of === that does not have any incoming directed constraint
+        //  (that is, <== or component constraint) from a signal outside the connected component.
+        //  If we cannot find such a connected component, return False. If we find such a connected
+        //  component, determine what are the outputs of the connected component, compute the constraints
+        //  (including <== constraints inside the connected component), simplify the constraints using
+        //  Gauss-Jordan. If the system is linear, directly output a result. If not, generate a struct
+        //  to be solved using Groebner basis.
+
+        unreachable!();
+    }
+
     // This function will propagate the fixed_nodes through the different type of constraints by
     // substituting the fixed value into all the appearing constraints, fixing
-    pub fn propagate_fixed_nodes(
+    fn propagate_fixed_nodes(
         &mut self,
         context: &InputDataContextView,
         constraint_storage: &mut ConstraintStorage,
@@ -313,15 +394,11 @@ impl VerificationGraph {
             let node = self.fixed_nodes.pop_last().unwrap();
             self.propagate_fixed_node(node, context, constraint_storage);
 
-            // TODO: Remove the following debug print
-            let base_path = Path::new(
-                r"C:\Users\pedro\Documents\dev\CircomVerification\test-artifacts\binsubtest",
-            );
-
+            // TODO: Remove the following DEBUG print
             print_verification_graph(
                 self,
                 context,
-                base_path
+                Path::new(context.base_path)
                     .join(format!(r"svg/step-{}.svg", it_num))
                     .as_path(),
             )
