@@ -4,10 +4,11 @@ use crate::{
 use circom_algebra::algebra::{ArithmeticExpression, Constraint, Substitution};
 use circom_algebra::constraint_storage::ConstraintStorage;
 use num_traits::Zero;
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
 
 #[allow(clippy::enum_variant_names)]
+#[derive(Clone)]
 pub enum Node {
     InputSignal,
     OutputSignal,
@@ -105,6 +106,18 @@ pub struct VerificationGraph {
     pub sub_components_to_verify: Vec<ComponentIndex>,
 }
 
+struct ConnectedComponent {
+    nodes: BTreeSet<SignalIndex>,
+}
+
+// This structure represents a polynomial system of constraints that should have their output fixed
+pub struct PolynomialSystemFixedSignal {
+    constraints: Vec<Constraint<usize>>,
+
+    // Signals to fix from the constraints given above
+    signals_to_fix: BTreeSet<SignalIndex>,
+}
+
 impl VerificationGraph {
     pub fn new(
         context: &InputDataContextView,
@@ -188,7 +201,7 @@ impl VerificationGraph {
             BTreeMap::<SignalIndex, BTreeSet<SafeAssignmentIndex>>::new();
         let mut safe_assignments = vec![];
 
-        let mut is_constraint_double_arrow = HashSet::new();
+        let mut is_constraint_double_arrow = BTreeSet::new();
 
         // Add safe assignment edges
         for (constraint, lhs_signal) in &tree_constraints.are_double_arrow {
@@ -340,7 +353,8 @@ impl VerificationGraph {
                 for signal_index in unsafe_outputs {
                     println!(
                         "Output '{}' of component '{}', template '{}' is never fixed from inputs!",
-                        context.signal_name_map[signal_index], context.tree_constraints.component_name,
+                        context.signal_name_map[signal_index],
+                        context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     );
                 }
@@ -370,7 +384,6 @@ impl VerificationGraph {
         &mut self,
         context: &InputDataContextView,
     ) -> bool {
-
         // TODO: Look for a connected component of === that does not have any incoming directed constraint
         //  (that is, <== or component constraint) from a signal outside the connected component.
         //  If we cannot find such a connected component, return False. If we find such a connected
@@ -379,7 +392,106 @@ impl VerificationGraph {
         //  Gauss-Jordan. If the system is linear, directly output a result. If not, generate a struct
         //  to be solved using Groebner basis.
 
-        unreachable!();
+        // TODO: 1. Compute connected components of === constraints
+        // TODO: How do we handle components inputs / outputs
+        let connected_components = self.compute_connected_components_unsafe_constraints();
+
+        // TODO: 2. Look for a connected component of === that does not have any incoming directed constraint
+        //  (that is, <== or component constraint) from a signal outside the connected component.
+
+        let mut filtered_connected_components = connected_components.iter()
+            .filter(|&comp| {
+
+                // TODO: Check that this is correct
+                let any_incoming_assignments_from_outside_component =
+                    comp.nodes.iter().any(|signal| {
+                        match self.incoming_safe_assignments.get(signal) {
+                            None => { false }
+                            Some(safe_assignment_idx) => {
+                                let rhs_signals = &self.safe_assignments[*safe_assignment_idx].rhs_signals;
+                                let any_rhs_signal_outside_connected_component = rhs_signals.iter()
+                                    .any(|s| {
+                                        comp.nodes.contains(s)
+                                    });
+
+                                any_rhs_signal_outside_connected_component
+                            }
+                        }
+                    });
+
+                let any_incoming_component_edges =
+                    comp.nodes.iter().any(|signal| {
+                        match self.nodes[signal] {
+                            // TODO: Only collect components with inputs from outside the component
+                            Node::SubComponentOutputSignal(cmp_index) => {
+                                let cmp_inputs = &self.subcomponents[&cmp_index].input_signals;
+                                let any_cmp_inputs_outside_connected_component = cmp_inputs.iter()
+                                    .any(|s| {
+                                        comp.nodes.contains(s)
+                                    });
+
+                                any_cmp_inputs_outside_connected_component
+                            }
+                            _ => { false }
+                        }
+                    });
+
+                !(any_incoming_assignments_from_outside_component || any_incoming_component_edges)
+            });
+
+        let valid_connected_component = filtered_connected_components.next();
+        if valid_connected_component.is_none() {
+            // There are cycles between connected components, cannot verify
+            // TODO: Better error handling
+            println!("There is no === constraint connected component without cycles! Aborting verify...");
+            return false;
+        }
+
+        // TODO: Add all connected component signals and constraints into a Groebner basis structure
+
+        // TODO: If the Groebner basis system can be solved using Gaussian elimination, fix nodes directly
+
+        return true;
+    }
+
+    fn compute_connected_components_unsafe_constraints(&self) -> Vec<ConnectedComponent> {
+        let remaining_nodes = self.nodes.clone();
+        let mut connected_components = Vec::new();
+
+        while !remaining_nodes.is_empty() {
+            let initial_node = self.nodes.iter().next().unwrap();
+            let mut already_visited = BTreeSet::new();
+            self.dfs_mark(*initial_node.0, &mut already_visited);
+
+            connected_components.push(ConnectedComponent {
+                nodes: already_visited,
+            });
+        }
+
+        connected_components
+    }
+
+    fn dfs_mark(&self, signal: SignalIndex, already_visited: &mut BTreeSet<SignalIndex>) {
+        if already_visited.contains(&signal) {
+            return;
+        }
+
+        already_visited.insert(signal);
+
+        let edges = self.edge_constraints.get(&signal);
+        if edges.is_none() {
+            return;
+        }
+
+        // TODO: How to handle subcomponents?
+        for &constraint in edges.unwrap() {
+            let signals = &self.unsafe_constraints[constraint].signals;
+            for other_signal in signals {
+                if signal != *other_signal {
+                    self.dfs_mark(signal, already_visited);
+                }
+            }
+        }
     }
 
     // This function will propagate the fixed_nodes through the different type of constraints by
