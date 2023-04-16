@@ -5,6 +5,7 @@ use graphviz_rust::dot_generator::*;
 use graphviz_rust::dot_structures::*;
 use graphviz_rust::exec;
 use graphviz_rust::printer::PrinterContext;
+use std::cell::RefCell;
 use std::error::Error;
 use std::fs;
 use std::fs::File;
@@ -13,10 +14,73 @@ use std::path::Path;
 
 use crate::verification_graph::Node as VNode;
 
+pub struct DebugSVGPrinter {
+    // String containing the base filepath of the base SVG folder output
+    svg_folder_path: String,
+
+    // This index counts which SVG file is the next to be printed, to be able to have sequential
+    //  filenames
+    index: RefCell<i32>,
+}
+
+impl DebugSVGPrinter {
+    pub fn new(svg_folder_path: &str) -> Self {
+        delete_all_files(Path::new(svg_folder_path));
+
+        Self {
+            svg_folder_path: String::from(svg_folder_path),
+            index: RefCell::new(0),
+        }
+    }
+
+    pub fn print_verification_graph(
+        &self,
+        verification_graph: &VerificationGraph,
+        context: &InputDataContextView,
+        file_name: &str,
+        graph_title: Option<&str>,
+    ) -> Result<(), Box<dyn Error>> {
+        let g = construct_graphviz_graph_from_verification_graph(
+            verification_graph,
+            context,
+            graph_title,
+        );
+
+        // TODO: Remove println debug print of Graphviz code
+        // let s = graphviz_rust::print(g.clone(), &mut PrinterContext::default());
+        // println!("{}", s);
+
+        let graph_svg = exec(g, &mut PrinterContext::default(), vec![Format::Svg.into()])?;
+
+        // Create a sequential filename: for example: svg/000-components.svg
+
+        let mut index = self.index.borrow_mut();
+
+        let path = Path::new(self.svg_folder_path.as_str())
+            .join(format!("{:0>3}-{}.svg", index, file_name));
+
+        *index += 1;
+
+        fs::create_dir_all(path.parent().unwrap())?;
+        let mut f = File::create(path)?;
+        f.write_all(graph_svg.as_bytes())?;
+
+        Ok(())
+    }
+}
+
+fn delete_all_files(base_path: &Path) {
+    if base_path.is_dir() {
+        fs::remove_dir_all(base_path).unwrap();
+    }
+    fs::create_dir(base_path).unwrap();
+}
+
 //noinspection SpellCheckingInspection
 fn construct_graphviz_graph_from_verification_graph(
     verification_graph: &VerificationGraph,
     context: &InputDataContextView,
+    graph_title: Option<&str>,
 ) -> Graph {
     let mut g = graph!(di id!("id"));
 
@@ -306,26 +370,11 @@ fn construct_graphviz_graph_from_verification_graph(
         }
     }
 
+    // Add graph title
+    if let Some(s) = graph_title {
+        g.add_stmt(Stmt::Attribute(attr!("label", esc s)));
+        g.add_stmt(Stmt::Attribute(attr!("labelloc", "t")));
+    }
+
     g
-}
-
-pub fn print_verification_graph(
-    verification_graph: &VerificationGraph,
-    context: &InputDataContextView,
-    path: &Path,
-) -> Result<(), Box<dyn Error>> {
-    let g = construct_graphviz_graph_from_verification_graph(verification_graph, context);
-
-    // TODO: Remove println
-    // Debug print of Graphviz code
-    // let s = graphviz_rust::print(g.clone(), &mut PrinterContext::default());
-    // println!("{}", s);
-
-    let graph_svg = exec(g, &mut PrinterContext::default(), vec![Format::Svg.into()])?;
-
-    fs::create_dir_all(path.parent().unwrap())?;
-    let mut f = File::create(path)?;
-    f.write_all(graph_svg.as_bytes())?;
-
-    Ok(())
 }

@@ -1,3 +1,4 @@
+use crate::DebugSVGPrinter;
 use circom_algebra::algebra::Constraint;
 use circom_algebra::constraint_storage::ConstraintStorage;
 use itertools::Itertools;
@@ -139,6 +140,7 @@ pub struct InputDataContext {
     pub signal_name_map: SignalNameMap,
     pub tree_constraints: TreeConstraints,
     pub base_path: String,
+    pub svg_printer: DebugSVGPrinter,
 }
 
 pub struct InputDataContextView<'a> {
@@ -147,6 +149,7 @@ pub struct InputDataContextView<'a> {
     pub tree_constraints: &'a TreeConstraints,
     pub field: BigInt,
     pub base_path: &'a String,
+    pub svg_printer: &'a DebugSVGPrinter,
 }
 
 impl InputDataContext {
@@ -171,6 +174,7 @@ impl InputDataContext {
                 signal_name_map,
                 tree_constraints,
                 base_path: folder_base_path.to_str().unwrap().to_string(),
+                svg_printer: DebugSVGPrinter::new(folder_base_path.join("svg").to_str().unwrap()),
             },
             constraint_storage,
         ))
@@ -185,6 +189,7 @@ impl InputDataContext {
             tree_constraints: &self.tree_constraints,
             field,
             base_path: &self.base_path,
+            svg_printer: &self.svg_printer,
         }
     }
 }
@@ -200,6 +205,7 @@ impl<'a> InputDataContextView<'a> {
             tree_constraints: self.tree_constraints.subcomponents.get(idx).unwrap(),
             field,
             base_path: self.base_path,
+            svg_printer: &self.svg_printer,
         }
     }
 

@@ -1,13 +1,10 @@
 use crate::verification_graph::Node::SubComponentInputSignal;
-use crate::{
-    print_verification_graph, ComponentIndex, ConstraintIndex, InputDataContextView, SignalIndex,
-};
+use crate::{ComponentIndex, ConstraintIndex, InputDataContextView, SignalIndex};
 use circom_algebra::algebra::{ArithmeticExpression, Constraint, Substitution};
 use circom_algebra::constraint_storage::ConstraintStorage;
 use num_bigint_dig::BigInt;
 use num_traits::Zero;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::path::Path;
 use std::process;
 
 #[allow(clippy::enum_variant_names)]
@@ -346,6 +343,19 @@ impl VerificationGraph {
         //      be verified and contain a list of Groebner Basis systems to be solved in addition
         //      to all subcomponents for that component to be verified
 
+        context.svg_printer.print_verification_graph(
+            self,
+            context,
+            format!("general-{}", context.tree_constraints.component_name).as_str(),
+            Some(
+                format!(
+                    "{}: {}",
+                    context.tree_constraints.component_name, context.tree_constraints.template_name
+                )
+                    .as_str(),
+            ),
+        ).unwrap();
+
         loop {
             self.propagate_fixed_nodes(context, constraint_storage);
 
@@ -590,14 +600,26 @@ impl VerificationGraph {
 
         // TODO: Add a better framework for these SVG Debug printings
         // TODO: Remove the following DEBUG print
-        print_verification_graph(
-            self,
-            context,
-            Path::new(context.base_path)
-                .join("svg/pol_system.svg")
-                .as_path(),
-        )
-        .unwrap();
+
+        context
+            .svg_printer
+            .print_verification_graph(
+                self,
+                context,
+                format!(
+                    "selected_connected_component-{}",
+                    context.tree_constraints.component_name
+                ).as_str(),
+                Some(
+                    format!(
+                        "Selected connected component of {}: {}",
+                        context.tree_constraints.component_name,
+                        context.tree_constraints.template_name
+                    )
+                        .as_str(),
+                ),
+            )
+            .unwrap();
 
         // Fow now, don't continue
         // TODO: Remove exit
@@ -681,22 +703,25 @@ impl VerificationGraph {
         context: &InputDataContextView,
         constraint_storage: &mut ConstraintStorage,
     ) {
-        let mut it_num = 0;
         while !self.fixed_nodes.is_empty() {
             let node = self.fixed_nodes.pop_last().unwrap();
             self.propagate_fixed_node(node, context, constraint_storage);
 
             // TODO: Remove the following DEBUG print
-            print_verification_graph(
+            context.svg_printer.print_verification_graph(
                 self,
                 context,
-                Path::new(context.base_path)
-                    .join(format!(r"svg/step-{}.svg", it_num))
-                    .as_path(),
+                format!("propagate-{}", context.tree_constraints.component_name).as_str(),
+                Some(
+                    format!(
+                        "{}: {}",
+                        context.tree_constraints.component_name,
+                        context.tree_constraints.template_name
+                    )
+                        .as_str(),
+                ),
             )
-            .unwrap();
-
-            it_num += 1;
+                .unwrap();
         }
     }
 
@@ -824,7 +849,7 @@ fn substitute_witness_signal_into_storage(
             coefficients: substitution_to_coefficients,
         },
     )
-    .unwrap();
+        .unwrap();
 
     Constraint::apply_substitution(&mut constraint, &substitution, &context.field);
 

@@ -9,7 +9,6 @@ use tree_constraint_graph_printer::*;
 
 use crate::verification_graph::VerificationGraph;
 use std::error::Error;
-use std::fs;
 use std::path::Path;
 
 // TODO: We should add an option for the user to prove strong safety for all inputs for a module
@@ -24,13 +23,6 @@ use std::path::Path;
 
 // TODO: When outputing constraints for Cocoa, first do a reachability analysis and remove all
 //  constraints not reachable by the outputs to fix
-
-fn delete_all_svg_files(base_path: &Path) {
-    if base_path.join("svg").is_dir() {
-        fs::remove_dir_all(base_path.join("svg")).unwrap();
-    }
-    fs::create_dir(base_path.join("svg")).unwrap();
-}
 
 fn main() -> Result<(), Box<dyn Error>> {
     let test_artifacts_path =
@@ -49,15 +41,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let context_view = global_context_view;
     // let context_view = global_context_view.get_subcomponent_context_view(2);
 
-    delete_all_svg_files(&base_path);
-
     let mut verification_graph = VerificationGraph::new(&context_view, &constraint_storage);
-    print_verification_graph(
-        &verification_graph,
-        &context_view,
-        base_path.join("svg/components.svg").as_path(),
-    )?;
-
     verification_graph.verify(&context_view, &mut constraint_storage);
 
     Ok(())
