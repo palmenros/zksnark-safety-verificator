@@ -621,11 +621,91 @@ impl VerificationGraph {
             )
             .unwrap();
 
+        // Remove all unfixed nodes, edges
+
+        for signal in &connected_component.nodes {
+
+            // 1. Handle unsafe constraints
+
+            // As we are using DFS across === constraint edges, we can directly remove all ===
+            //  constrains this node is associated with, even for fixed_nodes
+
+            if self.edge_constraints.contains_key(signal) {
+                for unsafe_constraint_index in &self.edge_constraints[signal] {
+                    self.unsafe_constraints[*unsafe_constraint_index].active = false;
+                }
+            }
+
+            self.edge_constraints.remove(signal);
+
+            // 2. Handle safe assignments
+
+            let node_fixed = self.fixed_nodes.contains(signal);
+
+            // Fixed or not fixed, delete the assignment where we are the LHS, as
+            //  they must come from inside the connected component
+            if let Some(safe_assignment_idx) = self.incoming_safe_assignments.get(signal) {
+                self.safe_assignments[*safe_assignment_idx].active = false;
+                self.incoming_safe_assignments.remove(signal);
+            }
+
+            // Only delete our outgoing assignment if we are not fixed
+            if !node_fixed {
+                // We do not need to set to inactive, as that will already be done by the LHS, just
+                //  remove it
+                self.outgoing_safe_assignments.remove(signal);
+            }
+
+            // 3. Handle components
+
+            // TODO: Possibly modify this after implementing components in polynomial connected components
+
+            if !node_fixed {
+                if let Node::SubComponentInputSignal(cmp_index) = self.nodes[signal] {
+                    // In this case, as we are not fixed, the output must be inside the connected component
+
+                    let cmp = self.subcomponents.get_mut(&cmp_index).unwrap();
+                    cmp.input_signals.remove(signal);
+                }
+
+                if let Node::SubComponentOutputSignal(cmp_index) = self.nodes[signal] {
+                    let cmp = self.subcomponents.get_mut(&cmp_index).unwrap();
+                    cmp.output_signals.remove(signal);
+                }
+            }
+            // 4. Delete this node if it wasn't to be fixed
+
+            if !node_fixed {
+                self.nodes.remove(signal);
+            }
+        }
+
+        // Redraw after removing all unfixed_nodes and edges
+
+        self.debug_polynomial_system_generator_data = Default::default();
+        context
+            .svg_printer
+            .print_verification_graph(
+                self,
+                context,
+                format!(
+                    "post-constraint-elimination-{}",
+                    context.tree_constraints.component_name
+                ).as_str(),
+                Some(
+                    format!(
+                        "{}: {}",
+                        context.tree_constraints.component_name,
+                        context.tree_constraints.template_name
+                    )
+                        .as_str(),
+                ),
+            )
+            .unwrap();
+
         // Fow now, don't continue
         // TODO: Remove exit
         process::exit(0);
-
-        // TODO: Remove all unfixed nodes, edges and redraw
 
         // TODO: If the Groebner basis system can be solved using Gaussian elimination, fix nodes directly
         //  Maybe do this on the Groebner Basis backend?
@@ -706,6 +786,9 @@ impl VerificationGraph {
         while !self.fixed_nodes.is_empty() {
             let node = self.fixed_nodes.pop_last().unwrap();
             self.propagate_fixed_node(node, context, constraint_storage);
+
+            // TODO: Add a command line option to only export SVG for first and last propagation
+            //  states, to avoid badly affecting performance.
 
             // TODO: Remove the following DEBUG print
             context.svg_printer.print_verification_graph(
@@ -817,10 +900,6 @@ impl VerificationGraph {
 
         self.nodes.remove(&fixed_node);
     }
-
-    // pub fn get_unsafe_constraints(&self) -> impl Iterator<Item=&UnsafeConstraint> {
-    //     self.unsafe_constraints.iter()
-    // }
 }
 
 // TODO: Study when to apply substitutions. If we want to prove weak safety (only
