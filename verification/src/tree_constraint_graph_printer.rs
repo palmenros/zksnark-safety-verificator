@@ -179,6 +179,8 @@ fn construct_graphviz_graph_from_verification_graph(
             continue;
         }
 
+        // TODO: Highlight if chosen in connected component debug info
+
         let lhs = ass.lhs_signal;
         // TODO: Handle rhs_signals of length 0 (for example i <== 1).
         if ass.rhs_signals.len() == 1 {
@@ -214,10 +216,17 @@ fn construct_graphviz_graph_from_verification_graph(
     }
 
     // Handle unsafe constraints ===
-    for c in &verification_graph.unsafe_constraints {
+    for (c_idx, c) in verification_graph.unsafe_constraints.iter().enumerate() {
         if !c.active {
             continue;
         }
+
+        let highlight_edge = verification_graph.debug_polynomial_system_generator_data.unsafe_constraints.contains(&c_idx);
+        let edge_color = if highlight_edge {
+            "lightpink:red:red:lightpink"
+        } else {
+            "green"
+        };
 
         if c.signals.len() == 1 {
             // Only one signal appears, make a loop
@@ -225,7 +234,7 @@ fn construct_graphviz_graph_from_verification_graph(
             g.add_stmt(Stmt::Edge(edge!(
                 node_id!(signal.to_string()) => node_id!(signal.to_string());
                 attr!("dir", "none"),
-                attr!("color", "green"),
+                attr!("color", esc edge_color),
                 attr!("label", esc " ==="),
                 attr!("fontname", "Courier")
             )));
@@ -246,7 +255,7 @@ fn construct_graphviz_graph_from_verification_graph(
                 // The direction of the edge matters for aesthetics in the graph.
                 // As a heuristic, if the node is an input, it will be the origin, else,
                 //   it will be a destination
-                let attrs = vec![attr!("dir", "none"), attr!("color", "green")];
+                let attrs = vec![attr!("dir", "none"), attr!("color",esc edge_color)];
 
                 if context.is_signal_public(*signal) {
                     // This signal is an input

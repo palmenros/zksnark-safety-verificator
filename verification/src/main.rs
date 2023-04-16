@@ -20,14 +20,16 @@ use std::path::Path;
 //  such as the one published in Circom paper
 
 fn delete_all_svg_files(base_path: &Path) {
-    fs::remove_dir_all(base_path.join("svg")).unwrap();
+    if base_path.join("svg").is_dir() {
+        fs::remove_dir_all(base_path.join("svg")).unwrap();
+    }
     fs::create_dir(base_path.join("svg")).unwrap();
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let test_artifacts_path =
         Path::new(r"C:\Users\pedro\Documents\dev\CircomVerification\test-artifacts\");
-    let folder_name = "binsubtest";
+    let folder_name = "different_connected_components";
 
     let base_path = Path::join(test_artifacts_path, folder_name);
 
@@ -38,8 +40,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let (context, mut constraint_storage) = InputDataContext::parse_from_files(&base_path)?;
     let global_context_view = context.get_context_view();
 
-    // let context_view = global_context_view;
-    let context_view = global_context_view.get_subcomponent_context_view(2);
+    let context_view = global_context_view;
+    // let context_view = global_context_view.get_subcomponent_context_view(2);
 
     delete_all_svg_files(&base_path);
 

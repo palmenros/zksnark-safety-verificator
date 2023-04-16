@@ -6,6 +6,7 @@ use circom_algebra::constraint_storage::ConstraintStorage;
 use num_traits::Zero;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::Path;
+use std::process;
 use crate::verification_graph::Node::SubComponentInputSignal;
 
 #[allow(clippy::enum_variant_names)]
@@ -125,13 +126,13 @@ pub struct PolynomialSystemFixedSignal {
 #[derive(Default)]
 pub struct DebugPolynomialSystemGeneratorData {
     // Nodes in the polynomial system
-    nodes: BTreeSet<SignalIndex>,
+    pub nodes: BTreeSet<SignalIndex>,
 
     // Safe assignments in the polynomial system
-    safe_assignments: BTreeSet<SafeAssignmentIndex>,
+    pub safe_assignments: BTreeSet<SafeAssignmentIndex>,
 
     // Unsafe constraints in the polynomial system
-    unsafe_constraints: BTreeSet<UnsafeConstraintIndex>,
+    pub unsafe_constraints: BTreeSet<UnsafeConstraintIndex>,
 }
 
 impl VerificationGraph {
@@ -520,7 +521,7 @@ impl VerificationGraph {
         // Compute the signals to fix, which are the signals which have dependencies outside the
         //  connected component
 
-        let signals_to_fix = connected_component.nodes.iter().filter(|signal_index| {
+        let mut signals_to_fix = connected_component.nodes.iter().filter(|signal_index| {
             // All component outputs have to be fixed
             if let Node::OutputSignal = self.nodes[signal_index] {
                 return true;
@@ -556,7 +557,8 @@ impl VerificationGraph {
             false
         }).copied().collect();
 
-        // TODO: Remove all non-output nodes and fix outputs
+        // Fix all the nodes that should be fixed
+        self.fixed_nodes.append(&mut signals_to_fix);
 
         // TODO: Draw the state of the map now
 
@@ -582,8 +584,10 @@ impl VerificationGraph {
         ).unwrap();
 
         // Fow now, don't continue
-        // TODO: Remove
-        unreachable!();
+        // TODO: Remove exit
+        process::exit(0);
+
+        // TODO: Remove all unfixed nodes, edges and redraw
 
         // TODO: If the Groebner basis system can be solved using Gaussian elimination, fix nodes directly
         //  Maybe do this on the Groebner Basis backend?
@@ -601,7 +605,7 @@ impl VerificationGraph {
         let mut connected_components = Vec::new();
 
         while !remaining_nodes.is_empty() {
-            let initial_node = self.nodes.iter().next().unwrap();
+            let initial_node = remaining_nodes.iter().next().unwrap();
             let mut already_visited = BTreeSet::new();
             self.dfs_mark(*initial_node.0, &mut already_visited);
 
@@ -645,7 +649,7 @@ impl VerificationGraph {
             let signals = &self.unsafe_constraints[constraint].signals;
             for other_signal in signals {
                 if signal != *other_signal {
-                    self.dfs_mark(signal, already_visited);
+                    self.dfs_mark(*other_signal, already_visited);
                 }
             }
         }
