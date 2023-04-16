@@ -1,13 +1,14 @@
+use crate::verification_graph::Node::SubComponentInputSignal;
 use crate::{
     print_verification_graph, ComponentIndex, ConstraintIndex, InputDataContextView, SignalIndex,
 };
 use circom_algebra::algebra::{ArithmeticExpression, Constraint, Substitution};
 use circom_algebra::constraint_storage::ConstraintStorage;
+use num_bigint_dig::BigInt;
 use num_traits::Zero;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::Path;
 use std::process;
-use crate::verification_graph::Node::SubComponentInputSignal;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Clone)]
@@ -384,7 +385,8 @@ impl VerificationGraph {
 
             // TODO: Else, if there are === constraints remaining, we should merge all === constraint
             //  cycles until there are no more connected components that can be merged
-            let did_merge = self.merge_unsafe_constraints_connected_component(context, constraint_storage);
+            let did_merge =
+                self.merge_unsafe_constraints_connected_component(context, constraint_storage);
             if !did_merge {
                 // There is some cyclic dependencies between the different === constraints connected
                 //  components, abort
@@ -418,51 +420,56 @@ impl VerificationGraph {
         // TODO: 2. Look for a connected component of === that does not have any incoming directed constraint
         //  (that is, <== or component constraint) from a signal outside the connected component.
 
-        let mut filtered_connected_components = connected_components.iter()
-            .filter(|&comp| {
-
-                // TODO: Check that this is correct
-                let any_incoming_assignments_from_outside_component =
-                    comp.nodes.iter().any(|signal| {
-                        match self.incoming_safe_assignments.get(signal) {
-                            None => { false }
-                            Some(safe_assignment_idx) => {
-                                let rhs_signals = &self.safe_assignments[*safe_assignment_idx].rhs_signals;
-                                let any_rhs_signal_outside_connected_component = rhs_signals.iter()
-                                    .any(|s| {
-                                        comp.nodes.contains(s)
-                                    });
-
-                                any_rhs_signal_outside_connected_component
-                            }
+        // TODO: Maybe we should also select a connected component where at least there is a ===
+        //  constraint? I'm not sure if that is necessary...
+        let mut filtered_connected_components = connected_components.iter().filter(|&comp| {
+            // TODO: Check that this is correct
+            let any_incoming_assignments_from_outside_component =
+                comp.nodes
+                    .iter()
+                    .any(|signal| match self.incoming_safe_assignments.get(signal) {
+                        None => false,
+                        Some(safe_assignment_idx) => {
+                            let rhs_signals =
+                                &self.safe_assignments[*safe_assignment_idx].rhs_signals;
+                            let any_rhs_signal_outside_connected_component =
+                                rhs_signals.iter().any(|s| !comp.nodes.contains(s));
+                            any_rhs_signal_outside_connected_component
                         }
                     });
 
-                let any_incoming_component_edges =
-                    comp.nodes.iter().any(|signal| {
-                        match self.nodes[signal] {
-                            // TODO: Only collect components with inputs from outside the component
-                            Node::SubComponentOutputSignal(cmp_index) => {
-                                let cmp_inputs = &self.subcomponents[&cmp_index].input_signals;
-                                let any_cmp_inputs_outside_connected_component = cmp_inputs.iter()
-                                    .any(|s| {
-                                        comp.nodes.contains(s)
-                                    });
+            let any_incoming_component_edges = comp.nodes.iter().any(|signal| {
+                match self.nodes[signal] {
+                    // TODO: Only collect components with inputs from outside the component
+                    Node::SubComponentOutputSignal(cmp_index) => {
+                        let cmp_inputs = &self.subcomponents[&cmp_index].input_signals;
+                        let any_cmp_inputs_outside_connected_component =
+                            cmp_inputs.iter().any(|s| !comp.nodes.contains(s));
 
-                                any_cmp_inputs_outside_connected_component
-                            }
-                            _ => { false }
-                        }
-                    });
-
-                !(any_incoming_assignments_from_outside_component || any_incoming_component_edges)
+                        any_cmp_inputs_outside_connected_component
+                    }
+                    _ => false,
+                }
             });
+
+            !(any_incoming_assignments_from_outside_component || any_incoming_component_edges)
+        });
+
+        // TODO: Remove this debug statement
+        let filtered_vec: Vec<_> = filtered_connected_components.clone().collect();
+        println!(
+            "Unfiltered: {}, Filtered: {}",
+            connected_components.len(),
+            filtered_vec.len()
+        );
 
         let maybe_connected_component = filtered_connected_components.next();
         if maybe_connected_component.is_none() {
             // There are cycles between connected components, cannot verify
             // TODO: Better error handling
-            println!("There is no === constraint connected component without cycles! Aborting verify...");
+            println!(
+                "There is no === constraint connected component without cycles! Aborting verify..."
+            );
             return false;
         }
 
@@ -484,9 +491,9 @@ impl VerificationGraph {
                 for unsafe_constraint_index in unsafe_constraints {
                     if !already_added_unsafe_constraints.contains(unsafe_constraint_index) {
                         let unsafe_constraint = &self.unsafe_constraints[*unsafe_constraint_index];
-                        let constraint = constraint_storage.read_constraint(
-                            unsafe_constraint.associated_constraint
-                        ).unwrap();
+                        let constraint = constraint_storage
+                            .read_constraint(unsafe_constraint.associated_constraint)
+                            .unwrap();
 
                         polynomial_constraints.push(constraint);
                         debug_polynomial_unsafe_constraints.insert(*unsafe_constraint_index);
@@ -499,12 +506,13 @@ impl VerificationGraph {
             if let Some(safe_assignment_index) = self.incoming_safe_assignments.get(signal) {
                 // This signal is the LHS of a safe assignment, whose RHS must all be inside the
                 //  connected component
-                let constraint_idx = self.safe_assignments[*safe_assignment_index].associated_constraint;
+                let constraint_idx =
+                    self.safe_assignments[*safe_assignment_index].associated_constraint;
 
-                polynomial_constraints.push(constraint_storage.read_constraint(constraint_idx).unwrap());
+                polynomial_constraints
+                    .push(constraint_storage.read_constraint(constraint_idx).unwrap());
                 debug_polynomial_safe_assignments.insert(*safe_assignment_index);
             }
-
 
             // TODO: Handle components
             if let Node::SubComponentOutputSignal(cmp_index) = self.nodes[signal] {
@@ -521,41 +529,48 @@ impl VerificationGraph {
         // Compute the signals to fix, which are the signals which have dependencies outside the
         //  connected component
 
-        let mut signals_to_fix = connected_component.nodes.iter().filter(|signal_index| {
-            // All component outputs have to be fixed
-            if let Node::OutputSignal = self.nodes[signal_index] {
-                return true;
-            }
-
-            // Check if there are any outgoing edge outside the component
-            let outgoing_safe_assignments = self.outgoing_safe_assignments.get(signal_index);
-            if let Some(safe_assignments) = outgoing_safe_assignments {
-                let any_rhs_outside_connected_component = safe_assignments.iter()
-                    .any(|safe_assignment_idx| {
-                        let lhs = self.safe_assignments[*safe_assignment_idx].lhs_signal;
-                        !connected_component.nodes.contains(&lhs)
-                    });
-
-                if any_rhs_outside_connected_component {
+        let mut signals_to_fix = connected_component
+            .nodes
+            .iter()
+            .filter(|signal_index| {
+                // All component outputs have to be fixed
+                if let Node::OutputSignal = self.nodes[signal_index] {
                     return true;
                 }
-            }
 
-            // Check if this is a subcomponent input and has subcomponent outputs outside connected_component
-            if let SubComponentInputSignal(cmp_index) = self.nodes[signal_index] {
-                let any_subcomponent_output_outside_connected_component = self.subcomponents[&cmp_index].output_signals.iter()
-                    .any(|cmp_output_signal| {
-                        !connected_component.nodes.contains(cmp_output_signal)
-                    });
+                // Check if there are any outgoing edge outside the component
+                let outgoing_safe_assignments = self.outgoing_safe_assignments.get(signal_index);
+                if let Some(safe_assignments) = outgoing_safe_assignments {
+                    let any_rhs_outside_connected_component =
+                        safe_assignments.iter().any(|safe_assignment_idx| {
+                            let lhs = self.safe_assignments[*safe_assignment_idx].lhs_signal;
+                            !connected_component.nodes.contains(&lhs)
+                        });
 
-                if any_subcomponent_output_outside_connected_component {
-                    return true;
+                    if any_rhs_outside_connected_component {
+                        return true;
+                    }
                 }
-            }
 
-            // None of the above conditions hold, so this node should not be classified as an output to be fixed
-            false
-        }).copied().collect();
+                // Check if this is a subcomponent input and has subcomponent outputs outside connected_component
+                if let SubComponentInputSignal(cmp_index) = self.nodes[signal_index] {
+                    let any_subcomponent_output_outside_connected_component =
+                        self.subcomponents[&cmp_index].output_signals.iter().any(
+                            |cmp_output_signal| {
+                                !connected_component.nodes.contains(cmp_output_signal)
+                            },
+                        );
+
+                    if any_subcomponent_output_outside_connected_component {
+                        return true;
+                    }
+                }
+
+                // None of the above conditions hold, so this node should not be classified as an output to be fixed
+                false
+            })
+            .copied()
+            .collect();
 
         // Fix all the nodes that should be fixed
         self.fixed_nodes.append(&mut signals_to_fix);
@@ -581,7 +596,8 @@ impl VerificationGraph {
             Path::new(context.base_path)
                 .join("svg/pol_system.svg")
                 .as_path(),
-        ).unwrap();
+        )
+        .unwrap();
 
         // Fow now, don't continue
         // TODO: Remove exit
@@ -629,14 +645,17 @@ impl VerificationGraph {
         already_visited.insert(signal);
 
         // TODO: How to handle components?
-        //  Do not add all outputs if one output is added, instead, extract only the relevant
-        //  constraints from the subcomponent
+        //  Add all outputs and inputs if one output is added. We will filter then unneeded constraints
+        //  before solving with Groebner basis. What to do with inputs?
         // if let Node::SubComponentOutputSignal(cmp_index) = self.nodes[&signal] {
         //     let cmp = &self.subcomponents[&cmp_index];
         //     for output in &cmp.output_signals {
         //         if *output != signal {
-        //             self.dfs_mark(signal, already_visited);
+        //             self.dfs_mark(*output, already_visited);
         //         }
+        //     }
+        //     for input in &cmp.input_signals {
+        //         self.dfs_mark(*input, already_visited);
         //     }
         // }
 
@@ -675,7 +694,7 @@ impl VerificationGraph {
                     .join(format!(r"svg/step-{}.svg", it_num))
                     .as_path(),
             )
-                .unwrap();
+            .unwrap();
 
             it_num += 1;
         }
@@ -805,7 +824,7 @@ fn substitute_witness_signal_into_storage(
             coefficients: substitution_to_coefficients,
         },
     )
-        .unwrap();
+    .unwrap();
 
     Constraint::apply_substitution(&mut constraint, &substitution, &context.field);
 
@@ -855,7 +874,12 @@ fn propagate_fixed_node_in_unsafe_constraint(
 
         // TODO: Check if this is the correct form to compute whether the constraint is linear
         if Constraint::<usize>::is_linear(&constraint) {
-            let coefficient = constraint.c().get(signal).unwrap();
+            // After substituting, the algebra library may remove associated constraints if the
+            //  value is 0, so if its not found inside the constraint map, it must be 0
+            // TODO: Check that the above assumption is correct.
+            let zero = BigInt::from(0u32);
+            let coefficient = constraint.c().get(signal).unwrap_or(&zero);
+
             if !coefficient.is_zero() {
                 fixed_nodes.insert(*signal);
 

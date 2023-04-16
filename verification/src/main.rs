@@ -19,6 +19,12 @@ use std::path::Path;
 // TODO: We should apply some heuristics for quickly verifying modules without === constraints,
 //  such as the one published in Circom paper
 
+// TODO: When outputing constraints for Cocoa, remember to print the 0==0 constraint if all hash
+//  maps are empty
+
+// TODO: When outputing constraints for Cocoa, first do a reachability analysis and remove all
+//  constraints not reachable by the outputs to fix
+
 fn delete_all_svg_files(base_path: &Path) {
     if base_path.join("svg").is_dir() {
         fs::remove_dir_all(base_path.join("svg")).unwrap();

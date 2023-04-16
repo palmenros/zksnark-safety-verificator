@@ -35,14 +35,23 @@ fn construct_graphviz_graph_from_verification_graph(
             VNode::InputSignal | VNode::OutputSignal | VNode::IntermediateSignal
         )
     }) {
+        let highlight_node = verification_graph
+            .debug_polynomial_system_generator_data
+            .nodes
+            .contains(s);
+        let highlight_color = "fuchsia";
+
         let mut attrs = match node {
             VNode::InputSignal | VNode::OutputSignal => vec![
                 attr!("label", esc context.signal_name_map.get(s).unwrap()),
-                attr!("color", "orange"),
+                attr!("color", esc if highlight_node {highlight_color} else {"orange"}),
                 attr!("shape", "Mdiamond"),
             ],
             VNode::IntermediateSignal => {
-                vec![attr!("label", esc context.signal_name_map.get(s).unwrap())]
+                vec![
+                    attr!("label", esc context.signal_name_map.get(s).unwrap()),
+                    attr!("color", esc if highlight_node {highlight_color} else {"black"}),
+                ]
             }
 
             _ => unreachable!(),
@@ -92,6 +101,8 @@ fn construct_graphviz_graph_from_verification_graph(
 
         let dummy_node_str = format!("dummy_{cmp_index}");
 
+        let highlight_color = "fuchsia";
+
         if should_draw_edges {
             // Dummy point for edges
             v.push(Stmt::Node(node!(dummy_node_str;
@@ -102,9 +113,14 @@ fn construct_graphviz_graph_from_verification_graph(
         }
 
         for output in &c.output_signals {
+            let highlight_node = verification_graph
+                .debug_polynomial_system_generator_data
+                .nodes
+                .contains(output);
+
             let mut attrs = vec![
                 attr!("label", esc context.signal_name_map.get(output).unwrap()),
-                attr!("color", "blue"),
+                attr!("color", esc if highlight_node {highlight_color} else {"blue"}),
             ];
 
             // Add style if this node has been fixed
@@ -122,9 +138,14 @@ fn construct_graphviz_graph_from_verification_graph(
         }
 
         for input in &c.input_signals {
+            let highlight_node = verification_graph
+                .debug_polynomial_system_generator_data
+                .nodes
+                .contains(input);
+
             let mut attrs = vec![
                 attr!("label", esc context.signal_name_map.get(input).unwrap()),
-                attr!("color", "green"),
+                attr!("color", esc if highlight_node {highlight_color} else {"green"}),
             ];
             // Add style if this node has been fixed
             if verification_graph.fixed_nodes.contains(input) {
@@ -174,7 +195,7 @@ fn construct_graphviz_graph_from_verification_graph(
 
     // Safe assignment double_arrow <== constraints
 
-    for ass in &verification_graph.safe_assignments {
+    for (s_idx, ass) in verification_graph.safe_assignments.iter().enumerate() {
         if !ass.active {
             continue;
         }
@@ -182,6 +203,17 @@ fn construct_graphviz_graph_from_verification_graph(
         // TODO: Highlight if chosen in connected component debug info
 
         let lhs = ass.lhs_signal;
+
+        let highlight_edge = verification_graph
+            .debug_polynomial_system_generator_data
+            .safe_assignments
+            .contains(&s_idx);
+        let edge_color = if highlight_edge {
+            "fuchsia:fuchsia"
+        } else {
+            "red"
+        };
+
         // TODO: Handle rhs_signals of length 0 (for example i <== 1).
         if ass.rhs_signals.len() == 1 {
             let rhs = ass.rhs_signals.iter().next().unwrap();
@@ -190,7 +222,7 @@ fn construct_graphviz_graph_from_verification_graph(
                 node_id!(rhs.to_string()) => node_id!(lhs.to_string());
                 attr!("label", esc " <=="),
                 attr!("fontname", "Courier"),
-                attr!("color", "red")
+                attr!("color", esc edge_color)
             )));
         } else {
             // Multiple sources, create intermediate node
@@ -203,13 +235,13 @@ fn construct_graphviz_graph_from_verification_graph(
             )));
             g.add_stmt(Stmt::Edge(edge!(
                 node_id!(intermediate_node_str) => node_id!(lhs.to_string());
-                attr!("color", "red")
+                attr!("color", esc edge_color)
             )));
 
             for rhs in &ass.rhs_signals {
                 g.add_stmt(Stmt::Edge(edge!(
                     node_id!(rhs.to_string()) => node_id!(intermediate_node_str);
-                    attr!("color", "red")
+                    attr!("color", esc edge_color)
                 )));
             }
         }
@@ -221,9 +253,12 @@ fn construct_graphviz_graph_from_verification_graph(
             continue;
         }
 
-        let highlight_edge = verification_graph.debug_polynomial_system_generator_data.unsafe_constraints.contains(&c_idx);
+        let highlight_edge = verification_graph
+            .debug_polynomial_system_generator_data
+            .unsafe_constraints
+            .contains(&c_idx);
         let edge_color = if highlight_edge {
-            "lightpink:red:red:lightpink"
+            "deeppink:fuchsia:fuchsia:deeppink"
         } else {
             "green"
         };
