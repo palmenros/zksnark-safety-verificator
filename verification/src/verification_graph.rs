@@ -4,8 +4,10 @@ use crate::{
 use circom_algebra::algebra::{ArithmeticExpression, Constraint, Substitution};
 use circom_algebra::constraint_storage::ConstraintStorage;
 use num_traits::Zero;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::Path;
+use graphviz_rust::attributes::constraint;
+use crate::verification_graph::Node::SubComponentInputSignal;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Clone)]
@@ -366,7 +368,7 @@ impl VerificationGraph {
 
             // TODO: Else, if there are === constraints remaining, we should merge all === constraint
             //  cycles until there are no more connected components that can be merged
-            let did_merge = self.merge_unsafe_constraints_connected_component(context);
+            let did_merge = self.merge_unsafe_constraints_connected_component(context, constraint_storage);
             if !did_merge {
                 // There is some cyclic dependencies between the different === constraints connected
                 //  components, abort
@@ -383,6 +385,7 @@ impl VerificationGraph {
     fn merge_unsafe_constraints_connected_component(
         &mut self,
         context: &InputDataContextView,
+        constraint_storage: &ConstraintStorage,
     ) -> bool {
         // TODO: Look for a connected component of === that does not have any incoming directed constraint
         //  (that is, <== or component constraint) from a signal outside the connected component.
@@ -439,19 +442,110 @@ impl VerificationGraph {
                 !(any_incoming_assignments_from_outside_component || any_incoming_component_edges)
             });
 
-        let valid_connected_component = filtered_connected_components.next();
-        if valid_connected_component.is_none() {
+        let maybe_connected_component = filtered_connected_components.next();
+        if maybe_connected_component.is_none() {
             // There are cycles between connected components, cannot verify
             // TODO: Better error handling
             println!("There is no === constraint connected component without cycles! Aborting verify...");
             return false;
         }
 
+        let connected_component = maybe_connected_component.unwrap();
+
         // TODO: Add all connected component signals and constraints into a Groebner basis structure
 
-        // TODO: If the Groebner basis system can be solved using Gaussian elimination, fix nodes directly
+        let already_added_unsafe_constraints = HashSet::<UnsafeConstraintIndex>::new();
+        let mut polynomial_constraints = vec![];
 
-        return true;
+        for signal in &connected_component.nodes {
+            // Add === constraints if not already added
+            let maybe_constraints = self.edge_constraints.get(signal);
+            if let Some(unsafe_constraints) = maybe_constraints {
+                for unsafe_constraint_index in unsafe_constraints {
+                    if !already_added_unsafe_constraints.contains(unsafe_constraint_index) {
+                        let unsafe_constraint = &self.unsafe_constraints[*unsafe_constraint_index];
+                        let constraint = constraint_storage.read_constraint(
+                            unsafe_constraint.associated_constraint
+                        ).unwrap();
+
+                        polynomial_constraints.push(constraint);
+                    }
+                }
+            }
+
+            // TODO: Better comments
+            // Only add safe_assignment <== in LHS, as then we are sure that is inside
+            if let Some(safe_assignment_index) = self.incoming_safe_assignments.get(signal) {
+                // This signal is the LHS of a safe assignment, whose RHS must all be inside the
+                //  connected component
+                let constraint_idx = self.safe_assignments[*safe_assignment_index].associated_constraint;
+
+                polynomial_constraints.push(constraint_storage.read_constraint(constraint_idx).unwrap());
+            }
+
+
+            // TODO: Handle components
+            if let Node::SubComponentOutputSignal(cmp_index) = self.nodes[signal] {
+                let cmp = &self.subcomponents[&cmp_index];
+                if !cmp.input_signals.is_empty() {
+                    // We need to instantiate the component and add the constraints here
+                    todo!()
+                }
+            }
+        }
+
+        // Compute the signals to fix, which are the signals which have dependencies outside the
+        //  connected component
+
+        let signals_to_fix = connected_component.nodes.iter().filter(|signal_index| {
+            // All component outputs have to be fixed
+            if let Node::OutputSignal = self.nodes[signal_index] {
+                return true;
+            }
+
+            // Check if there are any outgoing edge outside the component
+            let outgoing_safe_assignments = self.outgoing_safe_assignments.get(signal_index);
+            if let Some(safe_assignments) = outgoing_safe_assignments {
+                let any_rhs_outside_connected_component = safe_assignments.iter()
+                    .any(|safe_assignment_idx| {
+                        let lhs = self.safe_assignments[*safe_assignment_idx].lhs_signal;
+                        !connected_component.nodes.contains(&lhs)
+                    });
+
+                if any_rhs_outside_connected_component {
+                    return true;
+                }
+            }
+
+            // Check if this is a subcomponent input and has subcomponent outputs outside connected_component
+            if let SubComponentInputSignal(cmp_index) = self.nodes[signal_index] {
+                let any_subcomponent_output_outside_connected_component = self.subcomponents[&cmp_index].output_signals.iter()
+                    .any(|cmp_output_signal| {
+                        !connected_component.nodes.contains(cmp_output_signal)
+                    });
+
+                if any_subcomponent_output_outside_connected_component {
+                    return true;
+                }
+            }
+
+            // None of the above conditions hold, so this node should not be classified as an output to be fixed
+            false
+        }).copied().collect();
+
+        // TODO: Remove all non-output nodes and fix outputs
+
+        // TODO: Draw the state of the map now
+
+        // TODO: If the Groebner basis system can be solved using Gaussian elimination, fix nodes directly
+        //  Maybe do this on the Groebner Basis backend?
+
+        let polynomial_system = PolynomialSystemFixedSignal {
+            constraints: polynomial_constraints,
+            signals_to_fix,
+        };
+
+        true
     }
 
     fn compute_connected_components_unsafe_constraints(&self) -> Vec<ConnectedComponent> {
@@ -478,12 +572,23 @@ impl VerificationGraph {
 
         already_visited.insert(signal);
 
+        // TODO: How to handle components?
+        //  Do not add all outputs if one output is added, instead, extract only the relevant
+        //  constraints from the subcomponent
+        // if let Node::SubComponentOutputSignal(cmp_index) = self.nodes[&signal] {
+        //     let cmp = &self.subcomponents[&cmp_index];
+        //     for output in &cmp.output_signals {
+        //         if *output != signal {
+        //             self.dfs_mark(signal, already_visited);
+        //         }
+        //     }
+        // }
+
         let edges = self.edge_constraints.get(&signal);
         if edges.is_none() {
             return;
         }
 
-        // TODO: How to handle subcomponents?
         for &constraint in edges.unwrap() {
             let signals = &self.unsafe_constraints[constraint].signals;
             for other_signal in signals {
