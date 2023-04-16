@@ -6,7 +6,6 @@ use circom_algebra::constraint_storage::ConstraintStorage;
 use num_traits::Zero;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::Path;
-use graphviz_rust::attributes::constraint;
 use crate::verification_graph::Node::SubComponentInputSignal;
 
 #[allow(clippy::enum_variant_names)]
@@ -106,6 +105,9 @@ pub struct VerificationGraph {
 
     // List of subcomponents to verify in order for this component to be verified.
     pub sub_components_to_verify: Vec<ComponentIndex>,
+
+    // Fields for Debug SVG printing
+    pub debug_polynomial_system_generator_data: DebugPolynomialSystemGeneratorData,
 }
 
 struct ConnectedComponent {
@@ -118,6 +120,18 @@ pub struct PolynomialSystemFixedSignal {
 
     // Signals to fix from the constraints given above
     signals_to_fix: BTreeSet<SignalIndex>,
+}
+
+#[derive(Default)]
+pub struct DebugPolynomialSystemGeneratorData {
+    // Nodes in the polynomial system
+    nodes: BTreeSet<SignalIndex>,
+
+    // Safe assignments in the polynomial system
+    safe_assignments: BTreeSet<SafeAssignmentIndex>,
+
+    // Unsafe constraints in the polynomial system
+    unsafe_constraints: BTreeSet<UnsafeConstraintIndex>,
 }
 
 impl VerificationGraph {
@@ -313,6 +327,7 @@ impl VerificationGraph {
             fixed_nodes,
             number_of_outputs_not_yet_fixed: tree_constraints.number_outputs,
             sub_components_to_verify: vec![],
+            debug_polynomial_system_generator_data: Default::default(),
         }
     }
 
@@ -457,6 +472,10 @@ impl VerificationGraph {
         let already_added_unsafe_constraints = HashSet::<UnsafeConstraintIndex>::new();
         let mut polynomial_constraints = vec![];
 
+        // Used for debug graph printing
+        let mut debug_polynomial_safe_assignments = BTreeSet::new();
+        let mut debug_polynomial_unsafe_constraints = BTreeSet::new();
+
         for signal in &connected_component.nodes {
             // Add === constraints if not already added
             let maybe_constraints = self.edge_constraints.get(signal);
@@ -469,6 +488,7 @@ impl VerificationGraph {
                         ).unwrap();
 
                         polynomial_constraints.push(constraint);
+                        debug_polynomial_unsafe_constraints.insert(*unsafe_constraint_index);
                     }
                 }
             }
@@ -481,12 +501,15 @@ impl VerificationGraph {
                 let constraint_idx = self.safe_assignments[*safe_assignment_index].associated_constraint;
 
                 polynomial_constraints.push(constraint_storage.read_constraint(constraint_idx).unwrap());
+                debug_polynomial_safe_assignments.insert(*safe_assignment_index);
             }
 
 
             // TODO: Handle components
             if let Node::SubComponentOutputSignal(cmp_index) = self.nodes[signal] {
                 let cmp = &self.subcomponents[&cmp_index];
+
+                // TODO: Can the case that input_signals is empty really happen? Maybe assert otherwise
                 if !cmp.input_signals.is_empty() {
                     // We need to instantiate the component and add the constraints here
                     todo!()
@@ -537,6 +560,31 @@ impl VerificationGraph {
 
         // TODO: Draw the state of the map now
 
+        // TODO: we can maybe even delete the clone later
+        let debug_polynomial_system_generator_data = DebugPolynomialSystemGeneratorData {
+            nodes: connected_component.nodes.clone(),
+            safe_assignments: debug_polynomial_safe_assignments,
+            unsafe_constraints: debug_polynomial_unsafe_constraints,
+        };
+
+        self.debug_polynomial_system_generator_data = debug_polynomial_system_generator_data;
+
+        // Draw
+
+        // TODO: Add a better framework for these SVG Debug printings
+        // TODO: Remove the following DEBUG print
+        print_verification_graph(
+            self,
+            context,
+            Path::new(context.base_path)
+                .join("svg/pol_system.svg")
+                .as_path(),
+        ).unwrap();
+
+        // Fow now, don't continue
+        // TODO: Remove
+        unreachable!();
+
         // TODO: If the Groebner basis system can be solved using Gaussian elimination, fix nodes directly
         //  Maybe do this on the Groebner Basis backend?
 
@@ -549,13 +597,17 @@ impl VerificationGraph {
     }
 
     fn compute_connected_components_unsafe_constraints(&self) -> Vec<ConnectedComponent> {
-        let remaining_nodes = self.nodes.clone();
+        let mut remaining_nodes = self.nodes.clone();
         let mut connected_components = Vec::new();
 
         while !remaining_nodes.is_empty() {
             let initial_node = self.nodes.iter().next().unwrap();
             let mut already_visited = BTreeSet::new();
             self.dfs_mark(*initial_node.0, &mut already_visited);
+
+            for visited_node in &already_visited {
+                remaining_nodes.remove(visited_node);
+            }
 
             connected_components.push(ConnectedComponent {
                 nodes: already_visited,

@@ -27,7 +27,7 @@ fn delete_all_svg_files(base_path: &Path) {
 fn main() -> Result<(), Box<dyn Error>> {
     let test_artifacts_path =
         Path::new(r"C:\Users\pedro\Documents\dev\CircomVerification\test-artifacts\");
-    let folder_name = "unassigned_output";
+    let folder_name = "binsubtest";
 
     let base_path = Path::join(test_artifacts_path, folder_name);
 
@@ -38,8 +38,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let (context, mut constraint_storage) = InputDataContext::parse_from_files(&base_path)?;
     let global_context_view = context.get_context_view();
 
-    let context_view = global_context_view;
-    // let context_view = global_context_view.get_subcomponent_context_view(3);
+    // let context_view = global_context_view;
+    let context_view = global_context_view.get_subcomponent_context_view(2);
 
     delete_all_svg_files(&base_path);
 
