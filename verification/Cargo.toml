@@ -1,14 +1,15 @@
 [package]
 name = "verification"
 version = "1.0.0"
-authors = ["Pedro Palacios Almendros", "Costa Group UCM","iden3"]
+authors = ["Pedro Palacios Almendros", "Costa Group UCM", "iden3"]
 edition = "2021"
 
 [dependencies]
 num-bigint-dig = "0.6.0"
 num-traits = "0.2.6"
 serde_json = "1.0.79"
-serde = {version="1.0.136", features=["derive"]}
+serde = { version = "1.0.136", features = ["derive"] }
 itertools = "0.10.5"
-circom_algebra = {path = "../circom_algebra" }
+circom_algebra = { path = "../circom_algebra" }
 graphviz-rust = "0.6.1"
+colored = "2.0.0"

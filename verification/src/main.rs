@@ -3,6 +3,7 @@
 mod input_data;
 mod tree_constraint_graph_printer;
 mod verification_graph;
+mod verifier;
 
 use input_data::*;
 use tree_constraint_graph_printer::*;
@@ -20,6 +21,8 @@ use std::path::Path;
 
 // TODO: When outputing constraints for Cocoa, remember to print the 0==0 constraint if all hash
 //  maps are empty
+
+// TODO: When outputing constraints for Cocoa, try to simplify them using Gauss-Jordan first
 
 // TODO: When outputing constraints for Cocoa, first do a reachability analysis and remove all
 //  constraints not reachable by the outputs to fix
@@ -41,8 +44,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let context_view = global_context_view;
     // let context_view = global_context_view.get_subcomponent_context_view(2);
 
-    let mut verification_graph = VerificationGraph::new(&context_view, &constraint_storage);
-    verification_graph.verify(&context_view, &mut constraint_storage);
+    verifier::verify();
+
+    // let mut verification_graph = VerificationGraph::new(&context_view, &constraint_storage);
+    // verification_graph.verify(&context_view, &mut constraint_storage);
 
     Ok(())
 }
