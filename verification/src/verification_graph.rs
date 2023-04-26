@@ -791,27 +791,33 @@ impl VerificationGraph {
             let node = self.fixed_nodes.pop_last().unwrap();
             self.propagate_fixed_node(node, context, constraint_storage);
 
-            // TODO: Add a command line option to only export SVG for first and last propagation
-            //  states, to avoid badly affecting performance.
-
-            // TODO: Remove the following DEBUG print
-            context
-                .svg_printer
-                .print_verification_graph(
-                    self,
-                    context,
-                    format!("propagate-{}", context.tree_constraints.component_name).as_str(),
-                    Some(
-                        format!(
-                            "{}: {}",
-                            context.tree_constraints.component_name,
-                            context.tree_constraints.template_name
-                        )
-                        .as_str(),
-                    ),
-                )
-                .unwrap();
+            if !context.debug_options.generate_only_last_propagation_svg {
+                self.draw_propagation_svg(context);
+            }
         }
+
+        if context.debug_options.generate_svg_diagrams {
+            self.draw_propagation_svg(context);
+        }
+    }
+
+    fn draw_propagation_svg(&self, context: &InputDataContextView) {
+        context
+            .svg_printer
+            .print_verification_graph(
+                self,
+                context,
+                format!("propagate-{}", context.tree_constraints.component_name).as_str(),
+                Some(
+                    format!(
+                        "{}: {}",
+                        context.tree_constraints.component_name,
+                        context.tree_constraints.template_name
+                    )
+                    .as_str(),
+                ),
+            )
+            .unwrap();
     }
 
     // Propagate just one fixed_node.

@@ -135,12 +135,22 @@ fn parse_tree_constraints(path: &Path) -> Result<TreeConstraints, Box<dyn Error>
     Ok(constraints)
 }
 
+pub struct DebugOptions {
+    // Boolean that specifies whether SVG diagrams should be drawn
+    pub generate_svg_diagrams: bool,
+
+    // True if only the last frame of the propagation process should be converted into an SVG,
+    //  for better performance
+    pub generate_only_last_propagation_svg: bool,
+}
+
 pub struct InputDataContext {
     pub witness: Witness,
     pub signal_name_map: SignalNameMap,
     pub tree_constraints: TreeConstraints,
     pub base_path: String,
     pub svg_printer: DebugSVGPrinter,
+    pub debug_options: DebugOptions,
 }
 
 pub struct InputDataContextView<'a> {
@@ -150,6 +160,7 @@ pub struct InputDataContextView<'a> {
     pub field: BigInt,
     pub base_path: &'a String,
     pub svg_printer: &'a DebugSVGPrinter,
+    pub debug_options: &'a DebugOptions,
 }
 
 impl InputDataContext {
@@ -168,13 +179,23 @@ impl InputDataContext {
                 .as_path(),
         )?;
 
+        // TODO: Read this debug options from command line arguments
+        let debug_options = DebugOptions {
+            generate_svg_diagrams: true,
+            generate_only_last_propagation_svg: true,
+        };
+
         Ok((
             InputDataContext {
                 witness,
                 signal_name_map,
                 tree_constraints,
                 base_path: folder_base_path.to_str().unwrap().to_string(),
-                svg_printer: DebugSVGPrinter::new(folder_base_path.join("svg").to_str().unwrap()),
+                svg_printer: DebugSVGPrinter::new(
+                    folder_base_path.join("svg").to_str().unwrap(),
+                    &debug_options,
+                ),
+                debug_options,
             },
             constraint_storage,
         ))
@@ -190,6 +211,7 @@ impl InputDataContext {
             field,
             base_path: &self.base_path,
             svg_printer: &self.svg_printer,
+            debug_options: &self.debug_options,
         }
     }
 }
@@ -206,6 +228,7 @@ impl<'a> InputDataContextView<'a> {
             field,
             base_path: self.base_path,
             svg_printer: self.svg_printer,
+            debug_options: self.debug_options,
         }
     }
 

@@ -1,4 +1,5 @@
 use crate::input_data::{InputDataContextView, SignalIndex};
+use crate::polynomial_system_fixer::{display_polynomial_system_readable, generate_cocoa_script};
 use crate::verification_graph::VerificationGraph;
 use crate::verifier::ModuleUnsafeReason::UnfixedOutputsAfterPropagation;
 use crate::verifier::SubComponentVerificationResultKind::{
@@ -10,7 +11,6 @@ use circom_algebra::constraint_storage::ConstraintStorage;
 use colored::Colorize;
 use itertools::Itertools;
 use std::collections::BTreeSet;
-use crate::polynomial_system_fixer::{display_polynomial_system_readable, generate_cocoa_script};
 
 // This structure represents a polynomial system of constraints that should have their output fixed
 #[derive(Clone)]
@@ -94,8 +94,8 @@ impl SubComponentVerificationResult {
 
 impl SubComponentVerificationResult {
     pub fn apply<F>(&self, f: &mut F)
-        where
-            F: FnMut(&SubComponentVerificationResult),
+    where
+        F: FnMut(&SubComponentVerificationResult),
     {
         f(self);
 

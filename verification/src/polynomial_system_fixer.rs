@@ -24,7 +24,7 @@ enum SignalDisplayKind {
 pub type PolSystemIndex = usize;
 
 pub fn generate_cocoa_script(
-    pol_systems: &Vec<PolynomialSystemFixedSignal>,
+    pol_systems: &[PolynomialSystemFixedSignal],
     context: &InputDataContextView,
 ) -> String {
     let pol_systems_str: String = Itertools::intersperse(
@@ -33,7 +33,8 @@ pub fn generate_cocoa_script(
             .enumerate()
             .map(|(idx, pol_system)| -> String { get_cocoa_subscript(pol_system, context, idx) }),
         "\n".to_string(),
-    ).collect();
+    )
+    .collect();
 
     let field_prime = context.field.to_string();
 
@@ -100,7 +101,7 @@ fn get_cocoa_subscript(
             .chain(prohibition_vars),
         ", ".to_string(),
     )
-        .collect();
+    .collect();
 
     let pols: String = Itertools::intersperse(
         pol_system
@@ -114,7 +115,7 @@ fn get_cocoa_subscript(
             ))),
         ",\n".to_string(),
     )
-        .collect();
+    .collect();
 
     let s = formatdoc! {"
         use R ::= F[{vars}];
@@ -153,7 +154,7 @@ fn get_prohibition_witness_polynomial(
             }),
         " * ".to_string(),
     )
-        .collect();
+    .collect();
 
     str
 }
