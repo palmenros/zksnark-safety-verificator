@@ -344,7 +344,7 @@ impl VerificationGraph {
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                        .as_str(),
+                    .as_str(),
                 ),
             )
             .unwrap();
@@ -364,17 +364,14 @@ impl VerificationGraph {
                 subcomponent_verification_results.reserve(num_subcomponents);
 
                 for subcomponent_idx in 0..num_subcomponents {
-                    let subcomponent_context = context.get_subcomponent_context_view(subcomponent_idx);
-                    let mut subcomponent_verification_graph = VerificationGraph::new(
-                        &subcomponent_context,
-                        constraint_storage,
-                    );
+                    let subcomponent_context =
+                        context.get_subcomponent_context_view(subcomponent_idx);
+                    let mut subcomponent_verification_graph =
+                        VerificationGraph::new(&subcomponent_context, constraint_storage);
 
                     subcomponent_verification_results.push(
-                        subcomponent_verification_graph.verify_subcomponents(
-                            &subcomponent_context,
-                            constraint_storage,
-                        )
+                        subcomponent_verification_graph
+                            .verify_subcomponents(&subcomponent_context, constraint_storage),
                     );
                 }
 
@@ -623,14 +620,14 @@ impl VerificationGraph {
                     "selected_connected_component-{}",
                     context.tree_constraints.component_name
                 )
-                    .as_str(),
+                .as_str(),
                 Some(
                     format!(
                         "Selected connected component of {}: {}",
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                        .as_str(),
+                    .as_str(),
                 ),
             )
             .unwrap();
@@ -705,14 +702,14 @@ impl VerificationGraph {
                     "post-constraint-elimination-{}",
                     context.tree_constraints.component_name
                 )
-                    .as_str(),
+                .as_str(),
                 Some(
                     format!(
                         "{}: {}",
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                        .as_str(),
+                    .as_str(),
                 ),
             )
             .unwrap();
@@ -810,7 +807,7 @@ impl VerificationGraph {
                             context.tree_constraints.component_name,
                             context.tree_constraints.template_name
                         )
-                            .as_str(),
+                        .as_str(),
                     ),
                 )
                 .unwrap();
@@ -938,7 +935,7 @@ fn substitute_witness_signal_into_storage(
             coefficients: substitution_to_coefficients,
         },
     )
-        .unwrap();
+    .unwrap();
 
     Constraint::apply_substitution(&mut constraint, &substitution, &context.field);
 

@@ -1,13 +1,14 @@
 // TODO: Create a function that takes a polynomial system and the signals to be fixed, simplify
 //  it using Gauss-Jordan and finally generate Cocoa5 code for solving the Groebner Basis
 
+use crate::input_data::SignalIndex;
 use crate::verifier::PolynomialSystemFixedSignal;
 use crate::InputDataContextView;
 use circom_algebra::algebra::{ArithmeticExpression, Constraint};
 use itertools::Itertools;
 use num_bigint_dig::BigInt;
 use num_traits::One;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 pub fn print_polynomial_system(
     pol_system: &PolynomialSystemFixedSignal,
@@ -15,7 +16,7 @@ pub fn print_polynomial_system(
 ) {
     println!("\nConstraints: ");
     for constraint in &pol_system.constraints {
-        println!("{}", constraint_to_string(constraint, context));
+        println!("{} = 0", get_constraint_polynomial(constraint, context));
     }
 
     let signals_to_fix_name_vec: Vec<String> = pol_system
@@ -25,9 +26,38 @@ pub fn print_polynomial_system(
         .collect();
 
     println!("Signals to fix: {:?}", signals_to_fix_name_vec);
+    println!("Prohibition constraint: ");
+    println!(
+        "{} = 0",
+        get_prohibition_witness_polynomial(&pol_system.signals_to_fix, context)
+    );
 }
 
-fn constraint_to_string(constraint: &Constraint<usize>, context: &InputDataContextView) -> String {
+fn get_prohibition_witness_polynomial(
+    signals_to_fix: &BTreeSet<SignalIndex>,
+    context: &InputDataContextView,
+) -> String {
+    let str: String = Itertools::intersperse(
+        signals_to_fix
+            .iter()
+            .enumerate()
+            .map(|(i, signal_idx)| -> String {
+                let signal_name = &context.signal_name_map[signal_idx];
+                let witness_value = &context.witness[signal_idx];
+
+                format!("(({} - {})*u_{} - 1)", signal_name, witness_value, i)
+            }),
+        " * ".to_string(),
+    )
+    .collect();
+
+    str
+}
+
+fn get_constraint_polynomial(
+    constraint: &Constraint<usize>,
+    context: &InputDataContextView,
+) -> String {
     // We assume that the constraints are fixed (called Constraint::fix_constraint)
     // TODO: Check that fix_constraint is called
 
@@ -37,7 +67,7 @@ fn constraint_to_string(constraint: &Constraint<usize>, context: &InputDataConte
 
     if a.is_empty() || b.is_empty() {
         //  Only linear constraint c
-        format!("{} = 0", linear_term_to_string(c, context, false))
+        linear_term_to_string(c, context, false)
     } else {
         // TODO: Do not print the + symbol if
         let a_str = linear_term_to_string(a, context, true);
@@ -46,13 +76,13 @@ fn constraint_to_string(constraint: &Constraint<usize>, context: &InputDataConte
 
         if c_str.starts_with('-') {
             format!(
-                "{} * {} - {} = 0",
+                "{} * {} - {}",
                 a_str,
                 b_str,
                 c_str.chars().skip(1).collect::<String>()
             )
         } else {
-            format!("{} * {} + {} = 0", a_str, b_str, c_str)
+            format!("{} * {} + {}", a_str, b_str, c_str)
         }
     }
 }

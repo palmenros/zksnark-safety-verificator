@@ -94,8 +94,8 @@ impl SubComponentVerificationResult {
 
 impl SubComponentVerificationResult {
     pub fn apply<F>(&self, f: &mut F)
-        where
-            F: FnMut(&SubComponentVerificationResult),
+    where
+        F: FnMut(&SubComponentVerificationResult),
     {
         f(self);
 
