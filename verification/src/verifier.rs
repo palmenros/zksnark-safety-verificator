@@ -63,11 +63,21 @@ impl SubComponentVerificationResult {
             ModuleConditionallySafe(_) => None,
             ModuleUnsafe(unsafe_reason) => match unsafe_reason {
                 UnfixedOutputsAfterPropagation(unfixed_outputs) => {
-                    Some(format!(
-                        "[Unsafe] Component '{}' is unsafe. Outputs {} are not fixed by inputs",
-                        self.subcomponent_name,
-                        unfixed_outputs.iter().map(|s| { format!("'{}'", s) }).join(", ")
-                    ))
+                    if unfixed_outputs.len() == 1 {
+                        Some(
+                            format!(
+                                "[Unsafe] Component '{}' is unsafe. Output '{}' is not fixed by inputs",
+                                self.subcomponent_name,
+                                unfixed_outputs[0]
+                            )
+                        )
+                    } else {
+                        Some(format!(
+                            "[Unsafe] Component '{}' is unsafe. Outputs {} are not fixed by inputs",
+                            self.subcomponent_name,
+                            unfixed_outputs.iter().map(|s| { format!("'{}'", s) }).join(", ")
+                        ))
+                    }
                 }
             },
             Exception(exception) => match exception {
@@ -98,7 +108,7 @@ impl SubComponentVerificationResult {
 }
 
 pub fn verify(context: &InputDataContextView, constraint_storage: &mut ConstraintStorage) {
-    let mut verification_graph = VerificationGraph::new(context, &constraint_storage);
+    let mut verification_graph = VerificationGraph::new(context, constraint_storage);
     let res = verification_graph.verify_subcomponents(context, constraint_storage);
 
     let maybe_pol_systems = flatten_verification_result_and_report_errors(&res);

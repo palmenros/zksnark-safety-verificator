@@ -30,7 +30,7 @@ use std::path::Path;
 fn main() -> Result<(), Box<dyn Error>> {
     let test_artifacts_path =
         Path::new(r"C:\Users\pedro\Documents\dev\CircomVerification\test-artifacts\");
-    let folder_name = "different_connected_components";
+    let folder_name = "binsubtest";
 
     let base_path = Path::join(test_artifacts_path, folder_name);
 

@@ -74,18 +74,15 @@ fn linear_term_to_string(
         .sorted_by_key(|(&idx, _)| idx)
         .map(|(&idx, coeff)| -> String {
             if idx == ArithmeticExpression::<usize>::constant_coefficient() {
-                coeff.to_string()
+                coefficient_to_string(coeff, prime)
             } else {
                 let signal_name = context.signal_name_map.get(&idx).unwrap();
                 if coeff.is_one() {
                     signal_name.clone()
                 } else if coeff.eq(&(prime - &BigInt::one())) {
                     format!("-{}", signal_name)
-                } else if coeff > &(prime / 2) {
-                    // Handle negative numbers more gracefully
-                    format!("-{}*{}", prime - coeff, signal_name)
                 } else {
-                    format!("{}*{}", coeff, signal_name)
+                    format!("{}*{}", coefficient_to_string(coeff, prime), signal_name)
                 }
             }
         })
@@ -103,5 +100,14 @@ fn linear_term_to_string(
         format!("({})", s)
     } else {
         s
+    }
+}
+
+// Returns a prettified string of the given coefficient
+fn coefficient_to_string(coeff: &BigInt, prime_field: &BigInt) -> String {
+    if coeff > &(prime_field / 2) {
+        format!("-{}", (prime_field - coeff))
+    } else {
+        coeff.to_string()
     }
 }
