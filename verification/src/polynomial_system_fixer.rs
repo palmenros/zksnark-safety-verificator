@@ -21,7 +21,35 @@ enum SignalDisplayKind {
     Index,
 }
 
-pub fn print_polynomial_system(
+pub type PolSystemIndex = usize;
+
+pub fn generate_cocoa_script(
+    pol_systems: &Vec<PolynomialSystemFixedSignal>,
+    context: &InputDataContextView,
+) -> String {
+    let pol_systems_str: String = Itertools::intersperse(
+        pol_systems
+            .iter()
+            .enumerate()
+            .map(|(idx, pol_system)| -> String { get_cocoa_subscript(pol_system, context, idx) }),
+        "\n".to_string(),
+    ).collect();
+
+    let field_prime = context.field.to_string();
+
+    let s: String = formatdoc! {"
+        p := {field_prime};
+        use F ::= ZZ/(p);
+
+        {pol_systems_str}
+
+        println \"ALL OK\";
+    "};
+
+    s
+}
+
+pub fn display_polynomial_system_readable(
     pol_system: &PolynomialSystemFixedSignal,
     context: &InputDataContextView,
 ) {
@@ -48,9 +76,6 @@ pub fn print_polynomial_system(
         "{} = 0",
         get_prohibition_witness_polynomial(&pol_system.signals_to_fix, context, display_kind)
     );
-
-    println!("Cocoa Script: ");
-    println!("{}", get_cocoa_subscript(pol_system, context));
 }
 
 // Returns a String containing a subscript in the Cocoa5 CAS system for proving that the
@@ -58,6 +83,7 @@ pub fn print_polynomial_system(
 fn get_cocoa_subscript(
     pol_system: &PolynomialSystemFixedSignal,
     context: &InputDataContextView,
+    pol_system_idx: PolSystemIndex,
 ) -> String {
     let mut used_signal_indices = BTreeSet::new();
 
@@ -65,13 +91,16 @@ fn get_cocoa_subscript(
         used_signal_indices.append(&mut constraint.take_cloned_signals_ordered());
     }
 
-    let prohibition_vars = (0..pol_system.signals_to_fix.len()).map(|i| {
-        format!("u_{}", i)
-    });
+    let prohibition_vars = (0..pol_system.signals_to_fix.len()).map(|i| format!("u_{}", i));
 
-    let vars: String = Itertools::intersperse(used_signal_indices.iter().map(|i| {
-        format!("x_{}", i)
-    }).chain(prohibition_vars), ", ".to_string()).collect();
+    let vars: String = Itertools::intersperse(
+        used_signal_indices
+            .iter()
+            .map(|i| format!("x_{}", i))
+            .chain(prohibition_vars),
+        ", ".to_string(),
+    )
+        .collect();
 
     let pols: String = Itertools::intersperse(
         pol_system
@@ -92,7 +121,12 @@ fn get_cocoa_subscript(
 
         I := ideal({pols});
 
-        println \"Is pol_system safe: \", 1 IsIn I;
+        If not(1 IsIn I) Then
+            println \"ERROR: {pol_system_idx}\";
+            exit;
+        Else;
+            println \"OK: {pol_system_idx}\";
+        EndIf;
     "};
 
     s
