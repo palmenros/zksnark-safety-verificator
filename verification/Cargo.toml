@@ -13,3 +13,4 @@ itertools = "0.10.5"
 circom_algebra = { path = "../circom_algebra" }
 graphviz-rust = "0.6.1"
 colored = "2.0.0"
+indoc = "2"

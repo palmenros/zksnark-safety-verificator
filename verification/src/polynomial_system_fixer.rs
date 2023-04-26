@@ -5,10 +5,12 @@ use crate::input_data::SignalIndex;
 use crate::verifier::PolynomialSystemFixedSignal;
 use crate::InputDataContextView;
 use circom_algebra::algebra::{ArithmeticExpression, Constraint};
+use indoc::formatdoc;
 use itertools::Itertools;
 use num_bigint_dig::BigInt;
 use num_traits::One;
 use std::collections::{BTreeSet, HashMap};
+use std::iter;
 
 // This enum controls how each signal should be displayed: either as its name (which is human
 //  readable but may cause problems with Computer Algebra Systems), or as a signal index (which is
@@ -28,7 +30,10 @@ pub fn print_polynomial_system(
     println!("\nConstraints: ");
 
     for constraint in &pol_system.constraints {
-        println!("{} = 0", get_constraint_polynomial(constraint, context, display_kind));
+        println!(
+            "{} = 0",
+            get_constraint_polynomial(constraint, context, display_kind)
+        );
     }
 
     let signals_to_fix_name_vec: Vec<String> = pol_system
@@ -43,6 +48,54 @@ pub fn print_polynomial_system(
         "{} = 0",
         get_prohibition_witness_polynomial(&pol_system.signals_to_fix, context, display_kind)
     );
+
+    println!("Cocoa Script: ");
+    println!("{}", get_cocoa_subscript(pol_system, context));
+}
+
+// Returns a String containing a subscript in the Cocoa5 CAS system for proving that the
+//  signals are fixed by the given constraints
+fn get_cocoa_subscript(
+    pol_system: &PolynomialSystemFixedSignal,
+    context: &InputDataContextView,
+) -> String {
+    let mut used_signal_indices = BTreeSet::new();
+
+    for constraint in &pol_system.constraints {
+        used_signal_indices.append(&mut constraint.take_cloned_signals_ordered());
+    }
+
+    let prohibition_vars = (0..pol_system.signals_to_fix.len()).map(|i| {
+        format!("u_{}", i)
+    });
+
+    let vars: String = Itertools::intersperse(used_signal_indices.iter().map(|i| {
+        format!("x_{}", i)
+    }).chain(prohibition_vars), ", ".to_string()).collect();
+
+    let pols: String = Itertools::intersperse(
+        pol_system
+            .constraints
+            .iter()
+            .map(|c| -> String { get_constraint_polynomial(c, context, SignalDisplayKind::Index) })
+            .chain(iter::once(get_prohibition_witness_polynomial(
+                &pol_system.signals_to_fix,
+                context,
+                SignalDisplayKind::Index,
+            ))),
+        ",\n".to_string(),
+    )
+        .collect();
+
+    let s = formatdoc! {"
+        use R ::= F[{vars}];
+
+        I := ideal({pols});
+
+        println \"Is pol_system safe: \", 1 IsIn I;
+    "};
+
+    s
 }
 
 fn get_prohibition_witness_polynomial(
@@ -57,12 +110,8 @@ fn get_prohibition_witness_polynomial(
             .map(|(i, signal_idx)| -> String {
                 let indexed_signal_kind = format!("x_{}", signal_idx);
                 let signal_name = match display_kind {
-                    SignalDisplayKind::Name => {
-                        &context.signal_name_map[signal_idx]
-                    }
-                    SignalDisplayKind::Index => {
-                        &indexed_signal_kind
-                    }
+                    SignalDisplayKind::Name => &context.signal_name_map[signal_idx],
+                    SignalDisplayKind::Index => &indexed_signal_kind,
                 };
                 let witness_value = &context.witness[signal_idx];
 
@@ -103,6 +152,8 @@ fn get_constraint_polynomial(
                 b_str,
                 c_str.chars().skip(1).collect::<String>()
             )
+        } else if c.is_empty() {
+            format!("{} * {}", a_str, b_str)
         } else {
             format!("{} * {} + {}", a_str, b_str, c_str)
         }
@@ -131,12 +182,8 @@ fn linear_term_to_string(
             } else {
                 let indexed_signal_name = format!("x_{}", signal_idx);
                 let signal_name = match display_kind {
-                    SignalDisplayKind::Name => {
-                        &context.signal_name_map[&signal_idx]
-                    }
-                    SignalDisplayKind::Index => {
-                        &indexed_signal_name
-                    }
+                    SignalDisplayKind::Name => &context.signal_name_map[&signal_idx],
+                    SignalDisplayKind::Index => &indexed_signal_name,
                 };
 
                 if coeff.is_one() {
