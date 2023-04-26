@@ -19,12 +19,12 @@ use std::path::Path;
 // TODO: We should apply some heuristics for quickly verifying modules without === constraints,
 //  such as the one published in Circom paper
 
-// TODO: When outputing constraints for Cocoa, remember to print the 0==0 constraint if all hash
+// TODO: When outputting constraints for Cocoa, remember to print the 0==0 constraint if all hash
 //  maps are empty
 
-// TODO: When outputing constraints for Cocoa, try to simplify them using Gauss-Jordan first
+// TODO: When outputting constraints for Cocoa, try to simplify them using Gauss-Jordan first
 
-// TODO: When outputing constraints for Cocoa, first do a reachability analysis and remove all
+// TODO: When outputting constraints for Cocoa, first do a reachability analysis and remove all
 //  constraints not reachable by the outputs to fix
 
 fn main() -> Result<(), Box<dyn Error>> {

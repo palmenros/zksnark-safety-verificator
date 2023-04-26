@@ -344,7 +344,7 @@ impl VerificationGraph {
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
@@ -620,14 +620,14 @@ impl VerificationGraph {
                     "selected_connected_component-{}",
                     context.tree_constraints.component_name
                 )
-                .as_str(),
+                    .as_str(),
                 Some(
                     format!(
                         "Selected connected component of {}: {}",
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
@@ -702,21 +702,21 @@ impl VerificationGraph {
                     "post-constraint-elimination-{}",
                     context.tree_constraints.component_name
                 )
-                .as_str(),
+                    .as_str(),
                 Some(
                     format!(
                         "{}: {}",
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
 
         let polynomial_system = PolynomialSystemFixedSignal {
             constraints: polynomial_constraints,
-            signals_to_fix,
+            signals_to_fix: self.fixed_nodes.clone(),
         };
 
         Some(polynomial_system)
@@ -807,7 +807,7 @@ impl VerificationGraph {
                             context.tree_constraints.component_name,
                             context.tree_constraints.template_name
                         )
-                        .as_str(),
+                            .as_str(),
                     ),
                 )
                 .unwrap();
@@ -934,7 +934,7 @@ fn substitute_witness_signal_into_storage(
             coefficients: substitution_to_coefficients,
         },
     )
-    .unwrap();
+        .unwrap();
 
     Constraint::apply_substitution(&mut constraint, &substitution, &context.field);
 

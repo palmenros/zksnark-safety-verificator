@@ -13,11 +13,18 @@ pub fn print_polynomial_system(
     pol_system: &PolynomialSystemFixedSignal,
     context: &InputDataContextView,
 ) {
+    println!("\nConstraints: ");
     for constraint in &pol_system.constraints {
         println!("{}", constraint_to_string(constraint, context));
     }
 
-    println!();
+    let signals_to_fix_name_vec: Vec<String> = pol_system
+        .signals_to_fix
+        .iter()
+        .map(|idx| -> String { context.signal_name_map[idx].clone() })
+        .collect();
+
+    println!("Signals to fix: {:?}", signals_to_fix_name_vec);
 }
 
 fn constraint_to_string(constraint: &Constraint<usize>, context: &InputDataContextView) -> String {
@@ -38,7 +45,12 @@ fn constraint_to_string(constraint: &Constraint<usize>, context: &InputDataConte
         let c_str = linear_term_to_string(c, context, false);
 
         if c_str.starts_with('-') {
-            format!("{} * {} - {} = 0", a_str, b_str, c_str.chars().skip(1).collect::<String>())
+            format!(
+                "{} * {} - {} = 0",
+                a_str,
+                b_str,
+                c_str.chars().skip(1).collect::<String>()
+            )
         } else {
             format!("{} * {} + {} = 0", a_str, b_str, c_str)
         }

@@ -84,8 +84,8 @@ impl SubComponentVerificationResult {
 
 impl SubComponentVerificationResult {
     pub fn apply<F>(&self, f: &mut F)
-    where
-        F: FnMut(&SubComponentVerificationResult),
+        where
+            F: FnMut(&SubComponentVerificationResult),
     {
         f(self);
 
@@ -103,6 +103,7 @@ pub fn verify(context: &InputDataContextView, constraint_storage: &mut Constrain
 
     let maybe_pol_systems = flatten_verification_result_and_report_errors(&res);
     if let Some(pol_systems) = maybe_pol_systems {
+        // TODO: Somewhere remove 0=0 constraints from the polynomial system
         for pol_system in &pol_systems {
             print_polynomial_system(pol_system, context);
         }
