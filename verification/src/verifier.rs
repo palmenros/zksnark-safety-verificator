@@ -1,5 +1,5 @@
 use crate::input_data::{InputDataContextView, SignalIndex};
-use crate::polynomial_system_fixer::{display_polynomial_system_readable, generate_cocoa_script};
+use crate::polynomial_system_fixer::{verify_pol_systems};
 use crate::verification_graph::VerificationGraph;
 use crate::verifier::ModuleUnsafeReason::UnfixedOutputsAfterPropagation;
 use crate::verifier::SubComponentVerificationResultKind::{
@@ -94,8 +94,8 @@ impl SubComponentVerificationResult {
 
 impl SubComponentVerificationResult {
     pub fn apply<F>(&self, f: &mut F)
-    where
-        F: FnMut(&SubComponentVerificationResult),
+        where
+            F: FnMut(&SubComponentVerificationResult),
     {
         f(self);
 
@@ -107,20 +107,22 @@ impl SubComponentVerificationResult {
     }
 }
 
-pub fn verify(context: &InputDataContextView, constraint_storage: &mut ConstraintStorage) {
+pub fn verify(context: &InputDataContextView, constraint_storage: &mut ConstraintStorage) -> bool {
     let mut verification_graph = VerificationGraph::new(context, constraint_storage);
     let res = verification_graph.verify_subcomponents(context, constraint_storage);
 
     let maybe_pol_systems = flatten_verification_result_and_report_errors(&res);
     if let Some(pol_systems) = maybe_pol_systems {
-        // TODO: Somewhere remove 0=0 constraints from the polynomial system
-        for pol_system in &pol_systems {
-            display_polynomial_system_readable(pol_system, context);
+        if pol_systems.is_empty() {
+            // We don't have any polynomial systems to fix using Groebner Basis, finished.
+            println!("{}", "No polynomial systems to fix. Finished. Module is safe!".green());
+            return true;
+        } else {
+            return verify_pol_systems(&pol_systems, context);
         }
-
-        println!("\n COCOA Script: \n");
-        println!("{}", generate_cocoa_script(&pol_systems, context));
     }
+
+    false
 }
 
 // Returns true if any error or exception was found. False otherwise
@@ -151,8 +153,9 @@ fn flatten_verification_result_and_report_errors(
         }
     });
 
+    // TODO: If there are no errors / exceptions found, give a different message to the user
     println!(
-        "{} unsafe modules found, {} exceptions found",
+        "{} unsafe modules found, {} exceptions found on verification graph traversal",
         num_unsafe_found, num_exceptions_found
     );
 

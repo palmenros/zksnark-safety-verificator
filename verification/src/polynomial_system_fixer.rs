@@ -5,12 +5,14 @@ use crate::input_data::SignalIndex;
 use crate::verifier::PolynomialSystemFixedSignal;
 use crate::InputDataContextView;
 use circom_algebra::algebra::{ArithmeticExpression, Constraint};
+use colored::Colorize;
 use indoc::formatdoc;
 use itertools::Itertools;
 use num_bigint_dig::BigInt;
 use num_traits::One;
 use std::collections::{BTreeSet, HashMap};
 use std::iter;
+use which::which;
 
 // This enum controls how each signal should be displayed: either as its name (which is human
 //  readable but may cause problems with Computer Algebra Systems), or as a signal index (which is
@@ -23,6 +25,36 @@ enum SignalDisplayKind {
 
 pub type PolSystemIndex = usize;
 
+// Verifies a polynomial system generating a Cocoa5 file and executing it. Returns true if
+//  verification succeeded and false otherwise.
+pub fn verify_pol_systems(
+    pol_systems: &[PolynomialSystemFixedSignal],
+    context: &InputDataContextView,
+) -> bool {
+
+    // TODO: Add support for specifying in a command line argument the CoCoA PATH
+    let maybe_cocoa_path = which("CoCoAInterpreter");
+    if let Err(e) = maybe_cocoa_path {
+        let error_msg = format!("Couldn't find CocoA 5 interpreter in PATH: {}", e);
+        println!("{}", error_msg.red());
+        return false;
+    }
+
+    let cocoa_path = maybe_cocoa_path.unwrap();
+    let cocoa_base_folder = cocoa_path.parent().unwrap();
+    println!("Found COCOA at {}. COCOA folder is {}", cocoa_path.to_str().unwrap(), cocoa_base_folder.to_str().unwrap());
+
+    // TODO: Somewhere remove 0=0 constraints from the polynomial system
+    // for pol_system in &pol_systems {
+    //     display_polynomial_system_readable(pol_system, context);
+    // }
+    //
+    // println!("\n COCOA Script: \n");
+    // println!("{}", generate_cocoa_script(&pol_systems, context));
+
+    true
+}
+
 pub fn generate_cocoa_script(
     pol_systems: &[PolynomialSystemFixedSignal],
     context: &InputDataContextView,
@@ -34,7 +66,7 @@ pub fn generate_cocoa_script(
             .map(|(idx, pol_system)| -> String { get_cocoa_subscript(pol_system, context, idx) }),
         "\n".to_string(),
     )
-    .collect();
+        .collect();
 
     let field_prime = context.field.to_string();
 
@@ -101,7 +133,7 @@ fn get_cocoa_subscript(
             .chain(prohibition_vars),
         ", ".to_string(),
     )
-    .collect();
+        .collect();
 
     let pols: String = Itertools::intersperse(
         pol_system
@@ -115,7 +147,7 @@ fn get_cocoa_subscript(
             ))),
         ",\n".to_string(),
     )
-    .collect();
+        .collect();
 
     let s = formatdoc! {"
         use R ::= F[{vars}];
@@ -154,7 +186,7 @@ fn get_prohibition_witness_polynomial(
             }),
         " * ".to_string(),
     )
-    .collect();
+        .collect();
 
     str
 }

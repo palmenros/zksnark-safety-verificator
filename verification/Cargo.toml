@@ -14,3 +14,4 @@ circom_algebra = { path = "../circom_algebra" }
 graphviz-rust = "0.6.1"
 colored = "2.0.0"
 indoc = "2"
+which = "4.4.0"
