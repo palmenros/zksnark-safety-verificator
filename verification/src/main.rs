@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 mod input_data;
+mod polynomial_system_fixer;
 mod tree_constraint_graph_printer;
 mod verification_graph;
 mod verifier;
@@ -8,7 +9,6 @@ mod verifier;
 use input_data::*;
 use tree_constraint_graph_printer::*;
 
-use crate::verification_graph::VerificationGraph;
 use std::error::Error;
 use std::path::Path;
 
@@ -44,10 +44,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let context_view = global_context_view;
     // let context_view = global_context_view.get_subcomponent_context_view(2);
 
-    verifier::verify();
-
-    // let mut verification_graph = VerificationGraph::new(&context_view, &constraint_storage);
-    // verification_graph.verify(&context_view, &mut constraint_storage);
+    verifier::verify(&context_view, &mut constraint_storage);
 
     Ok(())
 }

@@ -175,7 +175,7 @@ impl<C: Default + Clone + Display + Hash + Eq> ArithmeticExpression<C> {
     // is meant to be call each time a hashmap is going to be
     // part of a Expression
     // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    fn constant_coefficient() -> C {
+    pub fn constant_coefficient() -> C {
         C::default()
     }
     fn initialize_hashmap_for_expression(initial: &mut HashMap<C, BigInt>) {

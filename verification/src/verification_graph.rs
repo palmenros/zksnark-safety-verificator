@@ -1,12 +1,14 @@
 use crate::verification_graph::Node::SubComponentInputSignal;
-use crate::verifier::PolynomialSystemFixedSignal;
+use crate::verifier::{
+    ModuleUnsafeReason, PolynomialSystemFixedSignal, SafetyConditions,
+    SubComponentVerificationResult, SubComponentVerificationResultKind, VerificationException,
+};
 use crate::{ComponentIndex, ConstraintIndex, InputDataContextView, SignalIndex};
 use circom_algebra::algebra::{ArithmeticExpression, Constraint, Substitution};
 use circom_algebra::constraint_storage::ConstraintStorage;
 use num_bigint_dig::BigInt;
 use num_traits::Zero;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::process;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Clone)]
@@ -322,18 +324,13 @@ impl VerificationGraph {
         }
     }
 
-    pub fn verify(
+    pub fn verify_subcomponents(
         &mut self,
         context: &InputDataContextView,
         constraint_storage: &mut ConstraintStorage,
-    ) {
+    ) -> SubComponentVerificationResult {
         // TODO: Maybe there are some easy. common, special cases to consider before executing
         //          the full algorithm.
-
-        // TODO: Return a tree of VerificationOutputs if everything has been verified.
-        //      The tree should contain for each component the list of subcomponents that need to
-        //      be verified and contain a list of Groebner Basis systems to be solved in addition
-        //      to all subcomponents for that component to be verified
 
         context
             .svg_printer
@@ -347,20 +344,41 @@ impl VerificationGraph {
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
+
+        let mut pol_systems_to_be_fixed: Vec<PolynomialSystemFixedSignal> = vec![];
 
         loop {
             self.propagate_fixed_nodes(context, constraint_storage);
 
             if self.number_of_outputs_not_yet_fixed == 0 {
                 // Verification complete, next subcomponents
-                // TODO: Record list of subcomponents to verify in some sort of tree structure
-                //  and return it
-                println!("Complete");
-                return;
+
+                let mut subcomponent_verification_results: Vec<SubComponentVerificationResult> =
+                    vec![];
+
+                let num_subcomponents = context.tree_constraints.subcomponents.len();
+                subcomponent_verification_results.reserve(num_subcomponents);
+
+                for subcomponent_idx in 0..num_subcomponents {
+                    subcomponent_verification_results.push(self.verify_subcomponents(
+                        &context.get_subcomponent_context_view(subcomponent_idx),
+                        constraint_storage,
+                    ))
+                }
+
+                return SubComponentVerificationResult {
+                    kind: SubComponentVerificationResultKind::ModuleConditionallySafe(
+                        SafetyConditions {
+                            subcomponents: subcomponent_verification_results,
+                            pol_systems: pol_systems_to_be_fixed,
+                        },
+                    ),
+                    subcomponent_name: context.tree_constraints.component_name.clone(),
+                };
             }
 
             // If there are no === constraints remaining, then the unfixed outputs will remain unfixed
@@ -375,31 +393,36 @@ impl VerificationGraph {
                     .filter(|(_, n)| matches!(n, Node::OutputSignal))
                     .map(|(signal_index, _)| signal_index);
 
-                for signal_index in unsafe_outputs {
-                    println!(
-                        "Output '{}' of component '{}', template '{}' is never fixed from inputs!",
-                        context.signal_name_map[signal_index],
-                        context.tree_constraints.component_name,
-                        context.tree_constraints.template_name
-                    );
-                }
-                // TODO: Format the unsafe outputs correctly
-                println!("Unsafe!");
-
-                return;
+                return SubComponentVerificationResult {
+                    kind: SubComponentVerificationResultKind::ModuleUnsafe(
+                        ModuleUnsafeReason::UnfixedOutputsAfterPropagation(
+                            unsafe_outputs
+                                .map(|idx| context.signal_name_map[idx].clone())
+                                .collect(),
+                        ),
+                    ),
+                    subcomponent_name: context.tree_constraints.component_name.clone(),
+                };
             }
 
             // Else, if there are === constraints remaining, we should merge all === constraint
             //  cycles until there are no more connected components that can be merged
-            let did_merge =
+            let maybe_pol_system =
                 self.merge_unsafe_constraints_connected_component(context, constraint_storage);
-            if !did_merge {
+
+            if let Some(pol_system) = maybe_pol_system {
+                pol_systems_to_be_fixed.push(pol_system);
+            } else {
                 // There is some cyclic dependencies between the different === constraints connected
                 //  components, abort
 
                 // TODO: Maybe use some heuristic to make a bigger connected component?
-                println!("Cannot determine, cyclic dependencies between === constraints");
-                return;
+                return SubComponentVerificationResult {
+                    kind: SubComponentVerificationResultKind::Exception(
+                        VerificationException::NoUnsafeConstraintConnectedComponentWithoutCycles,
+                    ),
+                    subcomponent_name: context.tree_constraints.component_name.clone(),
+                };
             }
         }
     }
@@ -410,7 +433,7 @@ impl VerificationGraph {
         &mut self,
         context: &InputDataContextView,
         constraint_storage: &ConstraintStorage,
-    ) -> bool {
+    ) -> Option<PolynomialSystemFixedSignal> {
         // TODO: Look for a connected component of === that does not have any incoming directed constraint
         //  (that is, <== or component constraint) from a signal outside the connected component.
         //  If we cannot find such a connected component, return False. If we find such a connected
@@ -468,11 +491,7 @@ impl VerificationGraph {
         let maybe_connected_component = filtered_connected_components.next();
         if maybe_connected_component.is_none() {
             // There are cycles between connected components, cannot verify
-            // TODO: Better error handling
-            println!(
-                "There is no === constraint connected component without cycles! Aborting verify..."
-            );
-            return false;
+            return None;
         }
 
         let connected_component = maybe_connected_component.unwrap();
@@ -601,14 +620,14 @@ impl VerificationGraph {
                     "selected_connected_component-{}",
                     context.tree_constraints.component_name
                 )
-                .as_str(),
+                    .as_str(),
                 Some(
                     format!(
                         "Selected connected component of {}: {}",
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
@@ -683,28 +702,24 @@ impl VerificationGraph {
                     "post-constraint-elimination-{}",
                     context.tree_constraints.component_name
                 )
-                .as_str(),
+                    .as_str(),
                 Some(
                     format!(
                         "{}: {}",
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
-
-        // Fow now, don't continue
-        // TODO: Remove exit
-        process::exit(0);
 
         let polynomial_system = PolynomialSystemFixedSignal {
             constraints: polynomial_constraints,
             signals_to_fix,
         };
 
-        true
+        Some(polynomial_system)
     }
 
     fn compute_connected_components_unsafe_constraints(&self) -> Vec<ConnectedComponent> {
@@ -792,7 +807,7 @@ impl VerificationGraph {
                             context.tree_constraints.component_name,
                             context.tree_constraints.template_name
                         )
-                        .as_str(),
+                            .as_str(),
                     ),
                 )
                 .unwrap();
@@ -919,7 +934,7 @@ fn substitute_witness_signal_into_storage(
             coefficients: substitution_to_coefficients,
         },
     )
-    .unwrap();
+        .unwrap();
 
     Constraint::apply_substitution(&mut constraint, &substitution, &context.field);
 

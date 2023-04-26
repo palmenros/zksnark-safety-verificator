@@ -205,7 +205,7 @@ impl<'a> InputDataContextView<'a> {
             tree_constraints: self.tree_constraints.subcomponents.get(idx).unwrap(),
             field,
             base_path: self.base_path,
-            svg_printer: &self.svg_printer,
+            svg_printer: self.svg_printer,
         }
     }
 

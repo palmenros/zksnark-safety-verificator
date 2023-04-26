@@ -1,15 +1,19 @@
-use crate::input_data::SignalIndex;
+use crate::input_data::{InputDataContextView, SignalIndex};
+use crate::verification_graph::VerificationGraph;
 use crate::verifier::ModuleUnsafeReason::UnfixedOutputsAfterPropagation;
 use crate::verifier::SubComponentVerificationResultKind::{
     Exception, ModuleConditionallySafe, ModuleUnsafe,
 };
 use crate::verifier::VerificationException::NoUnsafeConstraintConnectedComponentWithoutCycles;
 use circom_algebra::algebra::Constraint;
+use circom_algebra::constraint_storage::ConstraintStorage;
+use colored::Colorize;
 use itertools::Itertools;
 use std::collections::BTreeSet;
-use colored::Colorize;
+use crate::polynomial_system_fixer::print_polynomial_system;
 
 // This structure represents a polynomial system of constraints that should have their output fixed
+#[derive(Clone)]
 pub struct PolynomialSystemFixedSignal {
     pub constraints: Vec<Constraint<usize>>,
 
@@ -20,10 +24,10 @@ pub struct PolynomialSystemFixedSignal {
 // Conditions that must be satisfied for this module to be considered safe
 pub struct SafetyConditions {
     // Subcomponents that must also be verified for this module to be safe
-    subcomponents: Vec<SubComponentVerificationResult>,
+    pub subcomponents: Vec<SubComponentVerificationResult>,
 
     // Polynomial systems to be fixed using Groebner Basis for this module to be safe
-    pol_systems: Vec<PolynomialSystemFixedSignal>,
+    pub pol_systems: Vec<PolynomialSystemFixedSignal>,
 }
 
 pub enum VerificationException {
@@ -47,8 +51,8 @@ pub enum SubComponentVerificationResultKind {
 }
 
 pub struct SubComponentVerificationResult {
-    kind: SubComponentVerificationResultKind,
-    subcomponent_name: String,
+    pub kind: SubComponentVerificationResultKind,
+    pub subcomponent_name: String,
 }
 
 impl SubComponentVerificationResult {
@@ -93,7 +97,60 @@ impl SubComponentVerificationResult {
     }
 }
 
-pub fn verify() {
+pub fn verify(context: &InputDataContextView, constraint_storage: &mut ConstraintStorage) {
+    let mut verification_graph = VerificationGraph::new(context, &constraint_storage);
+    let res = verification_graph.verify_subcomponents(context, constraint_storage);
+
+    let maybe_pol_systems = flatten_verification_result_and_report_errors(&res);
+    if let Some(pol_systems) = maybe_pol_systems {
+        for pol_system in &pol_systems {
+            print_polynomial_system(pol_system, context);
+        }
+    }
+}
+
+// Returns true if any error or exception was found. False otherwise
+fn flatten_verification_result_and_report_errors(
+    verification_result: &SubComponentVerificationResult,
+) -> Option<Vec<PolynomialSystemFixedSignal>> {
+    let mut num_unsafe_found = 0;
+    let mut num_exceptions_found = 0;
+
+    let mut polynomial_systems_to_prove = vec![];
+
+    verification_result.apply(&mut |res| {
+        if let Some(s) = res.get_error_string() {
+            println!("{}", s.red());
+        }
+
+        match &res.kind {
+            ModuleUnsafe(_) => {
+                num_unsafe_found += 1;
+            }
+            ModuleConditionallySafe(safety_conditions) => {
+                // Add polynomial systems to a vector to further verify
+                polynomial_systems_to_prove.append(&mut safety_conditions.pol_systems.clone())
+            }
+            Exception(_) => {
+                num_exceptions_found += 1;
+            }
+        }
+    });
+
+    println!(
+        "{} unsafe modules found, {} exceptions found",
+        num_unsafe_found, num_exceptions_found
+    );
+
+    if num_unsafe_found + num_exceptions_found == 0 {
+        Some(polynomial_systems_to_prove)
+    } else {
+        None
+    }
+}
+
+#[test]
+fn test_verification_result_error_printing() {
     let a = SubComponentVerificationResult {
         kind: ModuleConditionallySafe(SafetyConditions {
             subcomponents: vec![
@@ -124,22 +181,5 @@ pub fn verify() {
         subcomponent_name: "main".to_string(),
     };
 
-    let mut num_unsafe_found = 0;
-    let mut num_exceptions_found = 0;
-
-    a.apply(&mut |res| {
-        if let Some(s) = res.get_error_string() {
-            println!("{}", s.red());
-        }
-
-        match res.kind {
-            ModuleUnsafe(_) => { num_unsafe_found += 1; }
-            ModuleConditionallySafe(_) => {
-                // TODO: Add polynomial systems to a vector to further verify
-            }
-            Exception(_) => { num_exceptions_found += 1; }
-        }
-    });
-
-    println!("{} unsafe modules found, {} exceptions found", num_unsafe_found, num_exceptions_found);
+    flatten_verification_result_and_report_errors(&a);
 }
