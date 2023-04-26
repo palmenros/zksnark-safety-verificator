@@ -6,8 +6,8 @@ use crate::InputDataContextView;
 use circom_algebra::algebra::{ArithmeticExpression, Constraint};
 use itertools::Itertools;
 use num_bigint_dig::BigInt;
-use std::collections::HashMap;
 use num_traits::One;
+use std::collections::HashMap;
 
 pub fn print_polynomial_system(
     pol_system: &PolynomialSystemFixedSignal,
@@ -30,17 +30,18 @@ fn constraint_to_string(constraint: &Constraint<usize>, context: &InputDataConte
 
     if a.is_empty() || b.is_empty() {
         //  Only linear constraint c
-        format!(
-            "{} = 0",
-            linear_term_to_string(c, context, false)
-        )
+        format!("{} = 0", linear_term_to_string(c, context, false))
     } else {
-        format!(
-            "{} * {} + {} = 0",
-            linear_term_to_string(a, context, true),
-            linear_term_to_string(b, context, true),
-            linear_term_to_string(c, context, false)
-        )
+        // TODO: Do not print the + symbol if
+        let a_str = linear_term_to_string(a, context, true);
+        let b_str = linear_term_to_string(b, context, true);
+        let c_str = linear_term_to_string(c, context, false);
+
+        if c_str.starts_with('-') {
+            format!("{} * {} - {} = 0", a_str, b_str, c_str.chars().skip(1).collect::<String>())
+        } else {
+            format!("{} * {} + {} = 0", a_str, b_str, c_str)
+        }
     }
 }
 
@@ -50,38 +51,41 @@ fn linear_term_to_string(
     context: &InputDataContextView,
     surround_with_parenthesis: bool,
 ) -> String {
-    // TODO: Maybe return Option<String> and None if there is nothing to print
-
     if linear_term.is_empty() {
-        return String::from("0");
+        return "0".to_string();
     }
 
     let prime = &context.field;
 
-    let s: String = itertools::Itertools::intersperse(
-        linear_term
-            .iter()
-            .sorted_by_key(|(&idx, _)| idx)
-            .map(|(&idx, coeff)| -> String {
-                if idx == ArithmeticExpression::<usize>::constant_coefficient() {
-                    coeff.to_string()
+    let s: String = linear_term
+        .iter()
+        .sorted_by_key(|(&idx, _)| idx)
+        .map(|(&idx, coeff)| -> String {
+            if idx == ArithmeticExpression::<usize>::constant_coefficient() {
+                coeff.to_string()
+            } else {
+                let signal_name = context.signal_name_map.get(&idx).unwrap();
+                if coeff.is_one() {
+                    signal_name.clone()
+                } else if coeff.eq(&(prime - &BigInt::one())) {
+                    format!("-{}", signal_name)
+                } else if coeff > &(prime / 2) {
+                    // Handle negative numbers more gracefully
+                    format!("-{}*{}", prime - coeff, signal_name)
                 } else {
-                    let signal_name = context.signal_name_map.get(&idx).unwrap();
-                    if coeff.is_one() {
-                        signal_name.clone()
-                    } else if coeff.eq(&(prime - &BigInt::one())) {
-                        format!("-{}", signal_name)
-                    } else if coeff > &(prime / 2) {
-                        // Handle negative numbers more gracefully
-                        format!("-{}*{}", prime - coeff, signal_name)
-                    } else {
-                        format!("{}*{}", coeff, signal_name)
-                    }
+                    format!("{}*{}", coeff, signal_name)
                 }
-            }),
-        String::from("+"),
-    )
-        .collect();
+            }
+        })
+        .fold("".to_string(), |curr, next| -> String {
+            if curr.is_empty() {
+                next
+            } else if next.starts_with('-') {
+                format!("{} - {}", curr, next.chars().skip(1).collect::<String>())
+            } else {
+                format!("{} + {}", curr, next)
+            }
+        });
 
     if surround_with_parenthesis && linear_term.len() > 1 {
         format!("({})", s)
