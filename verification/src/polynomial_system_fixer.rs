@@ -77,7 +77,15 @@ pub fn verify_pol_systems(
         let line = maybe_line?;
         if let Some(num_str) = line.strip_prefix("OK: ") {
             let num: usize = num_str.parse()?;
-            println!("\n{}", format!("Polynomial system {}/{} has only one solution!", num + 1, pol_systems_len).green());
+            println!(
+                "\n{}",
+                format!(
+                    "Polynomial system {}/{} has only one solution!",
+                    num + 1,
+                    pol_systems_len
+                )
+                .green()
+            );
 
             if num + 1 < pol_systems_len {
                 display_ith_pol_system_progress(pol_systems, num + 1, context);
@@ -86,7 +94,14 @@ pub fn verify_pol_systems(
             let num: usize = num_str.parse()?;
             child.kill()?;
 
-            println!("{}", format!("Polynomial system number {} possibly has many solutions! Aborting...", num + 1).red());
+            println!(
+                "{}",
+                format!(
+                    "Polynomial system number {} possibly has many solutions! Aborting...",
+                    num + 1
+                )
+                .red()
+            );
             return Ok(false);
         } else if line.eq("ALL OK") {
             return Ok(true);
@@ -108,7 +123,15 @@ fn display_ith_pol_system_progress(
     index: usize,
     context: &InputDataContextView,
 ) {
-    println!("\n{}", format!("Fixing polynomial system {}/{}", index + 1, pol_systems.len()).blue());
+    println!(
+        "\n{}",
+        format!(
+            "Fixing polynomial system {}/{}",
+            index + 1,
+            pol_systems.len()
+        )
+        .blue()
+    );
     display_polynomial_system_readable(&pol_systems[index], context);
 }
 
@@ -123,7 +146,7 @@ pub fn generate_cocoa_script(
             .map(|(idx, pol_system)| -> String { get_cocoa_subscript(pol_system, context, idx) }),
         "\n".to_string(),
     )
-        .collect();
+    .collect();
 
     let field_prime = context.field.to_string();
 
@@ -190,7 +213,7 @@ fn get_cocoa_subscript(
             .chain(prohibition_vars),
         ", ".to_string(),
     )
-        .collect();
+    .collect();
 
     let pols: String = Itertools::intersperse(
         pol_system
@@ -204,15 +227,13 @@ fn get_cocoa_subscript(
             ))),
         ",\n".to_string(),
     )
-        .collect();
+    .collect();
 
     // TODO: Remove SleepFor from Groebner file
     let s = formatdoc! {"
         use R ::= F[{vars}];
 
         I := ideal({pols});
-
-        SleepFor(2);
 
         If not(1 IsIn I) Then
             println \"ERROR: {pol_system_idx}\";
@@ -246,7 +267,7 @@ fn get_prohibition_witness_polynomial(
             }),
         " * ".to_string(),
     )
-        .collect();
+    .collect();
 
     str
 }

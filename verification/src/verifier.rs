@@ -1,5 +1,5 @@
 use crate::input_data::{InputDataContextView, SignalIndex};
-use crate::polynomial_system_fixer::{verify_pol_systems};
+use crate::polynomial_system_fixer::verify_pol_systems;
 use crate::verification_graph::VerificationGraph;
 use crate::verifier::ModuleUnsafeReason::UnfixedOutputsAfterPropagation;
 use crate::verifier::SubComponentVerificationResultKind::{
@@ -65,18 +65,18 @@ impl SubComponentVerificationResult {
             ModuleUnsafe(unsafe_reason) => match unsafe_reason {
                 UnfixedOutputsAfterPropagation(unfixed_outputs) => {
                     if unfixed_outputs.len() == 1 {
-                        Some(
-                            format!(
-                                "[Unsafe] Component '{}' is unsafe. Output '{}' is not fixed by inputs",
-                                self.subcomponent_name,
-                                unfixed_outputs[0]
-                            )
-                        )
+                        Some(format!(
+                            "[Unsafe] Component '{}' is unsafe. Output '{}' is not fixed by inputs",
+                            self.subcomponent_name, unfixed_outputs[0]
+                        ))
                     } else {
                         Some(format!(
                             "[Unsafe] Component '{}' is unsafe. Outputs {} are not fixed by inputs",
                             self.subcomponent_name,
-                            unfixed_outputs.iter().map(|s| { format!("'{}'", s) }).join(", ")
+                            unfixed_outputs
+                                .iter()
+                                .map(|s| { format!("'{}'", s) })
+                                .join(", ")
                         ))
                     }
                 }
@@ -96,8 +96,8 @@ impl SubComponentVerificationResult {
 
 impl SubComponentVerificationResult {
     pub fn apply<F>(&self, f: &mut F)
-        where
-            F: FnMut(&SubComponentVerificationResult),
+    where
+        F: FnMut(&SubComponentVerificationResult),
     {
         f(self);
 
@@ -109,7 +109,10 @@ impl SubComponentVerificationResult {
     }
 }
 
-pub fn verify(context: &InputDataContextView, constraint_storage: &mut ConstraintStorage) -> Result<bool, Box<dyn Error>> {
+pub fn verify(
+    context: &InputDataContextView,
+    constraint_storage: &mut ConstraintStorage,
+) -> Result<bool, Box<dyn Error>> {
     let mut verification_graph = VerificationGraph::new(context, constraint_storage);
     let res = verification_graph.verify_subcomponents(context, constraint_storage);
 
@@ -117,10 +120,32 @@ pub fn verify(context: &InputDataContextView, constraint_storage: &mut Constrain
     if let Some(pol_systems) = maybe_pol_systems {
         if pol_systems.is_empty() {
             // We don't have any polynomial systems to fix using Groebner Basis, finished.
-            println!("{}", "No polynomial systems to fix. Finished. Module is safe!".green());
+            println!(
+                "{}",
+                "No polynomial systems to fix. Finished. Module is safe!".green()
+            );
             return Ok(true);
         } else {
-            return verify_pol_systems(&pol_systems, context);
+            println!(
+                "{}",
+                "No exceptions or errors reported when traversing tree. Fixing polynomial systems...\n".green()
+            );
+
+            let res = verify_pol_systems(&pol_systems, context)?;
+
+            if res {
+                println!(
+                    "{}",
+                    "\nMODULE SAFE: all polynomials systems have been fixed".green()
+                );
+            } else {
+                println!(
+                    "{}",
+                    "\nCouldn't fix a polynomial system. Aborting verification...".red()
+                );
+            }
+
+            return Ok(res);
         }
     }
 
@@ -156,10 +181,15 @@ fn flatten_verification_result_and_report_errors(
     });
 
     // TODO: If there are no errors / exceptions found, give a different message to the user
-    println!(
-        "{} unsafe modules found, {} exceptions found on verification graph traversal",
-        num_unsafe_found, num_exceptions_found
-    );
+
+    if num_unsafe_found + num_exceptions_found > 0 {
+        println!(
+            "{}",
+            format!(
+                "{} unsafe modules found, {} exceptions found on verification graph traversal. Aborting safety verification...",
+                num_unsafe_found, num_exceptions_found).red()
+        );
+    }
 
     if num_unsafe_found + num_exceptions_found == 0 {
         Some(polynomial_systems_to_prove)
