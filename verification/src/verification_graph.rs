@@ -344,7 +344,7 @@ impl VerificationGraph {
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
@@ -486,7 +486,17 @@ impl VerificationGraph {
                 }
             });
 
-            !(any_incoming_assignments_from_outside_component || any_incoming_component_edges)
+            // TODO: Check that the chosen connected component has at least one === constraint
+            let any_unsafe_constraint = comp.nodes.iter().any(|signal| {
+                match self.edge_constraints.get(signal) {
+                    None => { false }
+                    Some(x) => {
+                        !x.is_empty()
+                    }
+                }
+            });
+
+            !(any_incoming_assignments_from_outside_component || any_incoming_component_edges) && any_unsafe_constraint
         });
 
         // TODO: Remove this debug statement
@@ -620,14 +630,14 @@ impl VerificationGraph {
                     "selected_connected_component-{}",
                     context.tree_constraints.component_name
                 )
-                .as_str(),
+                    .as_str(),
                 Some(
                     format!(
                         "Selected connected component of {}: {}",
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
@@ -702,14 +712,14 @@ impl VerificationGraph {
                     "post-constraint-elimination-{}",
                     context.tree_constraints.component_name
                 )
-                .as_str(),
+                    .as_str(),
                 Some(
                     format!(
                         "{}: {}",
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
@@ -814,7 +824,7 @@ impl VerificationGraph {
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
@@ -941,7 +951,7 @@ fn substitute_witness_signal_into_storage(
             coefficients: substitution_to_coefficients,
         },
     )
-    .unwrap();
+        .unwrap();
 
     Constraint::apply_substitution(&mut constraint, &substitution, &context.field);
 

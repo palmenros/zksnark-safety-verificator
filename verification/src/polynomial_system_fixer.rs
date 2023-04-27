@@ -11,7 +11,12 @@ use itertools::Itertools;
 use num_bigint_dig::BigInt;
 use num_traits::One;
 use std::collections::{BTreeSet, HashMap};
+use std::error::Error;
+use std::fs::File;
+use std::io::{BufRead, BufReader, Write};
 use std::iter;
+use std::path::Path;
+use std::process::{Command, Stdio};
 use which::which;
 
 // This enum controls how each signal should be displayed: either as its name (which is human
@@ -30,29 +35,81 @@ pub type PolSystemIndex = usize;
 pub fn verify_pol_systems(
     pol_systems: &[PolynomialSystemFixedSignal],
     context: &InputDataContextView,
-) -> bool {
+) -> Result<bool, Box<dyn Error>> {
+    assert!(!pol_systems.is_empty());
 
     // TODO: Add support for specifying in a command line argument the CoCoA PATH
     let maybe_cocoa_path = which("CoCoAInterpreter");
     if let Err(e) = maybe_cocoa_path {
         let error_msg = format!("Couldn't find CocoA 5 interpreter in PATH: {}", e);
         println!("{}", error_msg.red());
-        return false;
+        return Ok(false);
     }
 
     let cocoa_path = maybe_cocoa_path.unwrap();
     let cocoa_base_folder = cocoa_path.parent().unwrap();
-    println!("Found COCOA at {}. COCOA folder is {}", cocoa_path.to_str().unwrap(), cocoa_base_folder.to_str().unwrap());
+    println!("Found CoCoA at {}", cocoa_path.to_str().unwrap());
+
+    let cocoa_file_path = Path::new(context.base_path).join("groebner.cocoa5");
+
+    {
+        // Write Cocoa file
+        let mut cocoa_file = File::create(cocoa_file_path.as_path())?;
+        cocoa_file.write_all(generate_cocoa_script(pol_systems, context).as_bytes())?;
+        cocoa_file.flush()?;
+    }
+
+    println!("{}", cocoa_file_path.display());
+
+    let mut child = Command::new(cocoa_path.as_path())
+        .arg("--no-preamble")
+        .arg(cocoa_file_path)
+        .current_dir(cocoa_base_folder)
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    let stdout = child.stdout.take().unwrap();
+    let pol_systems_len = pol_systems.len();
+
+    display_ith_pol_system_progress(pol_systems, 0, context);
+
+    for maybe_line in BufReader::new(stdout).lines() {
+        let line = maybe_line?;
+        if let Some(num_str) = line.strip_prefix("OK: ") {
+            let num: usize = num_str.parse()?;
+            println!("\n{}", format!("Polynomial system {}/{} has only one solution!", num + 1, pol_systems_len).green());
+
+            if num + 1 < pol_systems_len {
+                display_ith_pol_system_progress(pol_systems, num + 1, context);
+            }
+        } else if let Some(num_str) = line.strip_prefix("ERROR: ") {
+            let num: usize = num_str.parse()?;
+            child.kill()?;
+
+            println!("{}", format!("Polynomial system number {} possibly has many solutions! Aborting...", num + 1).red());
+            return Ok(false);
+        } else if line.eq("ALL OK") {
+            return Ok(true);
+        } else {
+            unreachable!();
+        }
+    }
 
     // TODO: Somewhere remove 0=0 constraints from the polynomial system
     // for pol_system in &pol_systems {
     //     display_polynomial_system_readable(pol_system, context);
     // }
-    //
-    // println!("\n COCOA Script: \n");
-    // println!("{}", generate_cocoa_script(&pol_systems, context));
 
-    true
+    unreachable!()
+}
+
+fn display_ith_pol_system_progress(
+    pol_systems: &[PolynomialSystemFixedSignal],
+    index: usize,
+    context: &InputDataContextView,
+) {
+    println!("\n{}", format!("Fixing polynomial system {}/{}", index + 1, pol_systems.len()).blue());
+    display_polynomial_system_readable(&pol_systems[index], context);
 }
 
 pub fn generate_cocoa_script(
@@ -149,10 +206,13 @@ fn get_cocoa_subscript(
     )
         .collect();
 
+    // TODO: Remove SleepFor from Groebner file
     let s = formatdoc! {"
         use R ::= F[{vars}];
 
         I := ideal({pols});
+
+        SleepFor(2);
 
         If not(1 IsIn I) Then
             println \"ERROR: {pol_system_idx}\";

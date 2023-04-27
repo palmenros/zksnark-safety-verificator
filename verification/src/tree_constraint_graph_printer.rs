@@ -25,7 +25,7 @@ pub struct DebugSVGPrinter {
 }
 
 impl DebugSVGPrinter {
-    pub fn new(svg_folder_path: &str, debug_options: &DebugOptions) -> Self {
+    pub fn new(svg_folder_path: &str, _debug_options: &DebugOptions) -> Self {
         // TODO: Maybe only delete SVGs if debug_options.generate_svg_diagrams
         delete_all_files(Path::new(svg_folder_path));
 

@@ -11,6 +11,7 @@ use circom_algebra::constraint_storage::ConstraintStorage;
 use colored::Colorize;
 use itertools::Itertools;
 use std::collections::BTreeSet;
+use std::error::Error;
 
 // This structure represents a polynomial system of constraints that should have their output fixed
 #[derive(Clone)]
@@ -83,6 +84,7 @@ impl SubComponentVerificationResult {
             Exception(exception) => match exception {
                 NoUnsafeConstraintConnectedComponentWithoutCycles => {
                     Some(format!(
+                        // TODO: Change this message, as it may not always be a cyclic dependency (see is-zero-1)
                         "[Exception] Cyclic dependencies between === constraints connected component in component '{}', cannot determine safety",
                         self.subcomponent_name
                     ))
@@ -107,7 +109,7 @@ impl SubComponentVerificationResult {
     }
 }
 
-pub fn verify(context: &InputDataContextView, constraint_storage: &mut ConstraintStorage) -> bool {
+pub fn verify(context: &InputDataContextView, constraint_storage: &mut ConstraintStorage) -> Result<bool, Box<dyn Error>> {
     let mut verification_graph = VerificationGraph::new(context, constraint_storage);
     let res = verification_graph.verify_subcomponents(context, constraint_storage);
 
@@ -116,13 +118,13 @@ pub fn verify(context: &InputDataContextView, constraint_storage: &mut Constrain
         if pol_systems.is_empty() {
             // We don't have any polynomial systems to fix using Groebner Basis, finished.
             println!("{}", "No polynomial systems to fix. Finished. Module is safe!".green());
-            return true;
+            return Ok(true);
         } else {
             return verify_pol_systems(&pol_systems, context);
         }
     }
 
-    false
+    Ok(false)
 }
 
 // Returns true if any error or exception was found. False otherwise

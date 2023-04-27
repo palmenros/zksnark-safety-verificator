@@ -44,7 +44,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let context_view = global_context_view;
     // let context_view = global_context_view.get_subcomponent_context_view(2);
 
-    verifier::verify(&context_view, &mut constraint_storage);
+    verifier::verify(&context_view, &mut constraint_storage)?;
 
     Ok(())
 }
