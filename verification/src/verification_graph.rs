@@ -309,6 +309,20 @@ impl VerificationGraph {
             );
         }
 
+        // Components without any input
+
+        let mut sub_components_to_verify = vec![];
+
+        for (idx, cmp) in &subcomponents {
+            if cmp.input_signals.is_empty() {
+                sub_components_to_verify.push(*idx);
+
+                for output in &cmp.output_signals {
+                    fixed_nodes.insert(*output);
+                }
+            }
+        }
+
         VerificationGraph {
             nodes,
             incoming_safe_assignments,
@@ -319,7 +333,7 @@ impl VerificationGraph {
             unsafe_constraints,
             fixed_nodes,
             number_of_outputs_not_yet_fixed: tree_constraints.number_outputs,
-            sub_components_to_verify: vec![],
+            sub_components_to_verify,
             debug_polynomial_system_generator_data: Default::default(),
         }
     }
