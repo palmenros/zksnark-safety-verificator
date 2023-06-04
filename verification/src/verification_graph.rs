@@ -878,8 +878,9 @@ impl VerificationGraph {
                 //  Example: out <== -in*inv + 1. If in=0, then it is equivalent to out <== 1
                 //  To handle that, instead of just removing from ass.rhs_signals the fixed_node,
                 //  we assign to it the new list of signals after simplification
-                
+
                 ass.rhs_signals = constraint.take_signals().iter().map(|x| **x).collect();
+                ass.rhs_signals.remove(&ass.lhs_signal);
 
                 propagate_fixed_node_in_safe_assignment(
                     &mut self.fixed_nodes,
