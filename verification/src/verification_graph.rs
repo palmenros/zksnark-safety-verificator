@@ -358,7 +358,7 @@ impl VerificationGraph {
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
@@ -454,25 +454,22 @@ impl VerificationGraph {
         context: &InputDataContextView,
         constraint_storage: &ConstraintStorage,
     ) -> Option<PolynomialSystemFixedSignal> {
-        // TODO: Look for a connected component of === that does not have any incoming directed constraint
+        // Look for a connected component of === that does not have any incoming directed constraint
         //  (that is, <== or component constraint) from a signal outside the connected component.
-        //  If we cannot find such a connected component, return False. If we find such a connected
-        //  component, determine what are the outputs of the connected component, compute the constraints
-        //  (including <== constraints inside the connected component), simplify the constraints using
-        //  Gauss-Jordan. If the system is linear, directly output a result. If not, generate a struct
-        //  to be solved using Groebner basis.
+        //  If we cannot find such a connected component, return None. If we find such a connected
+        //  component return it
 
-        // TODO: 1. Compute connected components of === constraints
-        // TODO: How do we handle components inputs / outputs
+        // 1. Compute connected components of === constraints
+        // FIXME: Check how to we handle components inputs / outputs if we allow components in
+        //  each connected component.
         let connected_components = self.compute_connected_components_unsafe_constraints();
 
-        // TODO: 2. Look for a connected component of === that does not have any incoming directed constraint
+        // 2. Look for a connected component of === that does not have any incoming directed constraint
         //  (that is, <== or component constraint) from a signal outside the connected component.
 
-        // TODO: Maybe we should also select a connected component where at least there is a ===
-        //  constraint? I'm not sure if that is necessary...
+        // FIXME: Now we only select a connected component where at least there is a ===
+        //  constraint? Maybe there are cases were that is not appropiate.
         let mut filtered_connected_components = connected_components.iter().filter(|&comp| {
-            // TODO: Check that this is correct
             let any_incoming_assignments_from_outside_component =
                 comp.nodes
                     .iter()
@@ -489,7 +486,7 @@ impl VerificationGraph {
 
             let any_incoming_component_edges = comp.nodes.iter().any(|signal| {
                 match self.nodes[signal] {
-                    // TODO: Only collect components with inputs from outside the component
+                    // Only collect components with inputs from outside the component
                     Node::SubComponentOutputSignal(cmp_index) => {
                         let cmp_inputs = &self.subcomponents[&cmp_index].input_signals;
                         let any_cmp_inputs_outside_connected_component =
@@ -501,7 +498,7 @@ impl VerificationGraph {
                 }
             });
 
-            // TODO: Check that the chosen connected component has at least one === constraint
+            // Check that the chosen connected component has at least one === constraint
             let any_unsafe_constraint =
                 comp.nodes
                     .iter()
@@ -646,14 +643,14 @@ impl VerificationGraph {
                     "selected_connected_component-{}",
                     context.tree_constraints.component_name
                 )
-                .as_str(),
+                    .as_str(),
                 Some(
                     format!(
                         "Selected connected component of {}: {}",
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
@@ -728,14 +725,14 @@ impl VerificationGraph {
                     "post-constraint-elimination-{}",
                     context.tree_constraints.component_name
                 )
-                .as_str(),
+                    .as_str(),
                 Some(
                     format!(
                         "{}: {}",
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
@@ -840,7 +837,7 @@ impl VerificationGraph {
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
@@ -869,13 +866,21 @@ impl VerificationGraph {
         if self.outgoing_safe_assignments.contains_key(&fixed_node) {
             for ass_idx in &self.outgoing_safe_assignments[&fixed_node] {
                 let ass = &mut self.safe_assignments[*ass_idx];
-                substitute_witness_signal_into_storage(
+                let constraint = substitute_witness_signal_into_storage(
                     ass.associated_constraint,
                     context,
                     constraint_storage,
                     fixed_node,
                 );
-                ass.rhs_signals.remove(&fixed_node);
+
+                // Maybe after substituting an input signal another signal which originally
+                //  appeared has now a zero coefficient, so we have to clean that signal too.
+                //  Example: out <== -in*inv + 1. If in=0, then it is equivalent to out <== 1
+                //  To handle that, instead of just removing from ass.rhs_signals the fixed_node,
+                //  we assign to it the new list of signals after simplification
+                
+                ass.rhs_signals = constraint.take_signals().iter().map(|x| **x).collect();
+
                 propagate_fixed_node_in_safe_assignment(
                     &mut self.fixed_nodes,
                     ass,
@@ -952,7 +957,7 @@ fn substitute_witness_signal_into_storage(
     context: &InputDataContextView,
     constraint_storage: &mut ConstraintStorage,
     fixed_signal: SignalIndex,
-) {
+) -> Constraint<usize> {
     let mut constraint = constraint_storage.read_constraint(constraint_idx).unwrap();
 
     let mut substitution_to_coefficients = HashMap::new();
@@ -967,14 +972,16 @@ fn substitute_witness_signal_into_storage(
             coefficients: substitution_to_coefficients,
         },
     )
-    .unwrap();
+        .unwrap();
 
     Constraint::apply_substitution(&mut constraint, &substitution, &context.field);
 
     // TODO: Check that we are doing a correct normalization
     Constraint::fix_constraint(&mut constraint, &context.field);
 
-    constraint_storage.replace(constraint_idx, constraint);
+    constraint_storage.replace(constraint_idx, constraint.clone());
+
+    constraint
 }
 
 // This function checks a safe assignment. If all RHS values have been fixed, the LHS will

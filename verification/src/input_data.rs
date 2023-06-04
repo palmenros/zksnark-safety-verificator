@@ -181,7 +181,7 @@ impl InputDataContext {
 
         // TODO: Read this debug options from command line arguments
         let debug_options = DebugOptions {
-            generate_svg_diagrams: false,
+            generate_svg_diagrams: true,
             generate_only_last_propagation_svg: true,
         };
 

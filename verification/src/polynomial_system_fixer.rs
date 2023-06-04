@@ -227,9 +227,11 @@ pub fn optimize_pol_system(
         }
     }
 
+    // Remove constraints that are 0 == 0
+    let non_zero_constraints = pol_system.constraints.iter().filter(|x| !x.is_empty());
+
     OptimizedPolynomialSystemFixedSignal {
-        // TODO: Find a way to avoid this clone
-        constraints: pol_system.constraints.clone(),
+        constraints: non_zero_constraints.cloned().collect(),
         signals_to_fix: pol_system
             .signals_to_fix
             .iter()
