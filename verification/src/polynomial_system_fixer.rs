@@ -9,7 +9,7 @@ use colored::Colorize;
 use indoc::formatdoc;
 use itertools::Itertools;
 use num_bigint_dig::BigInt;
-use num_traits::{One};
+use num_traits::One;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::error::Error;
 use std::fs::File;
@@ -69,12 +69,17 @@ pub fn verify_pol_systems(
 
     let cocoa_file_path = Path::new(context.base_path).join("groebner.cocoa5");
 
-    let optimized_pol_systems: Vec<_> = pol_systems.iter().map(|x| optimize_pol_system(x, context)).collect();
+    let optimized_pol_systems: Vec<_> = pol_systems
+        .iter()
+        .map(|x| optimize_pol_system(x, context))
+        .collect();
 
     {
         // Write Cocoa file
         let mut cocoa_file = File::create(cocoa_file_path.as_path())?;
-        cocoa_file.write_all(generate_cocoa_script(optimized_pol_systems.as_slice(), context).as_bytes())?;
+        cocoa_file.write_all(
+            generate_cocoa_script(optimized_pol_systems.as_slice(), context).as_bytes(),
+        )?;
         cocoa_file.flush()?;
     }
 
@@ -103,7 +108,7 @@ pub fn verify_pol_systems(
                     num + 1,
                     pol_systems_len
                 )
-                    .green()
+                .green()
             );
 
             if num + 1 < pol_systems_len {
@@ -119,7 +124,7 @@ pub fn verify_pol_systems(
                     "Polynomial system number {} possibly has many solutions! Aborting...",
                     num + 1
                 )
-                    .red()
+                .red()
             );
             return Ok(false);
         } else if line.eq("ALL OK") {
@@ -149,7 +154,7 @@ fn display_ith_pol_system_progress(
             index + 1,
             pol_systems.len()
         )
-            .blue()
+        .blue()
     );
     display_polynomial_system_readable(&pol_systems[index], context);
 }
@@ -157,7 +162,10 @@ fn display_ith_pol_system_progress(
 // This function computes whether a given constraint is a binary constraint, that is, it specifies
 //  that a given signal must be binary. If it is, it returns the SignalIndex that this constraint
 //  specifies is binary. Else, it returns None
-fn is_constraint_binary_restriction(constraint: &Constraint<usize>, field_prime: &BigInt) -> Option<SignalIndex> {
+fn is_constraint_binary_restriction(
+    constraint: &Constraint<usize>,
+    field_prime: &BigInt,
+) -> Option<SignalIndex> {
     if !constraint.c().is_empty() {
         return None;
     }
@@ -195,7 +203,8 @@ fn is_constraint_binary_restriction(constraint: &Constraint<usize>, field_prime:
         return None;
     }
 
-    let constant_coefficient_bigint = double_signals.get(&Constraint::<usize>::constant_coefficient())?;
+    let constant_coefficient_bigint =
+        double_signals.get(&Constraint::<usize>::constant_coefficient())?;
 
     if !(field_prime - constant_coefficient_bigint).is_one() {
         return None;
@@ -221,9 +230,18 @@ pub fn optimize_pol_system(
     OptimizedPolynomialSystemFixedSignal {
         // TODO: Find a way to avoid this clone
         constraints: pol_system.constraints.clone(),
-        signals_to_fix: pol_system.signals_to_fix.iter().map(|idx| -> (SignalIndex, SignalToFixData) {
-            (*idx, SignalToFixData { is_boolean: binary_signals.contains(idx) })
-        }).collect(),
+        signals_to_fix: pol_system
+            .signals_to_fix
+            .iter()
+            .map(|idx| -> (SignalIndex, SignalToFixData) {
+                (
+                    *idx,
+                    SignalToFixData {
+                        is_boolean: binary_signals.contains(idx),
+                    },
+                )
+            })
+            .collect(),
     }
 }
 
@@ -238,7 +256,7 @@ pub fn generate_cocoa_script(
             .map(|(idx, pol_system)| -> String { get_cocoa_subscript(pol_system, context, idx) }),
         "\n".to_string(),
     )
-        .collect();
+    .collect();
 
     let field_prime = context.field.to_string();
 
@@ -270,8 +288,9 @@ pub fn display_polynomial_system_readable(
     }
 
     let signals_to_fix_name_vec: Vec<String> = pol_system
-        .signals_to_fix.keys()
-        .map(|idx| { context.signal_name_map[idx].clone() })
+        .signals_to_fix
+        .keys()
+        .map(|idx| context.signal_name_map[idx].clone())
         .collect();
 
     let binary_signals_name_vec: Vec<String> = pol_system
@@ -283,7 +302,8 @@ pub fn display_polynomial_system_readable(
             } else {
                 None
             }
-        }).collect();
+        })
+        .collect();
 
     println!("Signals to fix: {:?}", signals_to_fix_name_vec);
     println!("Binary signals: {:?}", binary_signals_name_vec);
@@ -310,13 +330,17 @@ fn get_cocoa_subscript(
 
     // let prohibition_vars = (0..pol_system.signals_to_fix.len()).map(|i| format!("u_{}", i));
 
-    let prohibition_vars = pol_system.signals_to_fix.iter().filter_map(|(idx, data)| -> Option<String> {
-        if data.is_boolean {
-            None
-        } else {
-            Some(format!("u_{}", idx))
-        }
-    });
+    let prohibition_vars =
+        pol_system
+            .signals_to_fix
+            .iter()
+            .filter_map(|(idx, data)| -> Option<String> {
+                if data.is_boolean {
+                    None
+                } else {
+                    Some(format!("u_{}", idx))
+                }
+            });
 
     let vars: String = Itertools::intersperse(
         used_signal_indices
@@ -325,7 +349,7 @@ fn get_cocoa_subscript(
             .chain(prohibition_vars),
         ", ".to_string(),
     )
-        .collect();
+    .collect();
 
     let pols: String = Itertools::intersperse(
         pol_system
@@ -339,7 +363,7 @@ fn get_cocoa_subscript(
             ))),
         ",\n".to_string(),
     )
-        .collect();
+    .collect();
 
     // TODO: Remove SleepFor from Groebner file
     let s = formatdoc! {"
@@ -366,24 +390,25 @@ fn get_prohibition_witness_polynomial(
     // TODO: Find some way to optimize prohibition for binary variables. Instead of generating a new
     // u_i value, just assert that they must be the opposite binary value.
     let str: String = Itertools::intersperse(
-        signals_to_fix
-            .iter()
-            .map(|(signal_idx, data)| -> String {
-                let indexed_signal_kind = format!("x_{}", signal_idx);
-                let signal_name = match display_kind {
-                    SignalDisplayKind::Name => &context.signal_name_map[signal_idx],
-                    SignalDisplayKind::Index => &indexed_signal_kind,
-                };
-                let witness_value = &context.witness[signal_idx];
-                if data.is_boolean {
-                    format!("({} - {})", signal_name, 1 - witness_value)
-                } else {
-                    format!("(({} - {})*u_{} - 1)", signal_name, witness_value, signal_idx)
-                }
-            }),
+        signals_to_fix.iter().map(|(signal_idx, data)| -> String {
+            let indexed_signal_kind = format!("x_{}", signal_idx);
+            let signal_name = match display_kind {
+                SignalDisplayKind::Name => &context.signal_name_map[signal_idx],
+                SignalDisplayKind::Index => &indexed_signal_kind,
+            };
+            let witness_value = &context.witness[signal_idx];
+            if data.is_boolean {
+                format!("({} - {})", signal_name, 1 - witness_value)
+            } else {
+                format!(
+                    "(({} - {})*u_{} - 1)",
+                    signal_name, witness_value, signal_idx
+                )
+            }
+        }),
         " * ".to_string(),
     )
-        .collect();
+    .collect();
 
     str
 }
