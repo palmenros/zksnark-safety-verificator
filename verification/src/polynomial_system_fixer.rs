@@ -101,10 +101,14 @@ pub fn verify_pol_systems(
 
     display_ith_pol_system_progress(optimized_pol_systems.as_slice(), 0, context);
 
+    let mut vec_timed_outs = Vec::new();
+    let mut vec_many_solutions = Vec::new();
+
     for maybe_line in BufReader::new(stdout).lines() {
         let line = maybe_line?;
+        let num: usize;
         if let Some(num_str) = line.strip_prefix("OK: ") {
-            let num: usize = num_str.parse()?;
+            num = num_str.parse()?;
             println!(
                 "\n{}",
                 format!(
@@ -114,41 +118,46 @@ pub fn verify_pol_systems(
                 )
                     .green()
             );
-
-            if num + 1 < pol_systems_len {
-                display_ith_pol_system_progress(optimized_pol_systems.as_slice(), num + 1, context);
-            }
         } else if let Some(num_str) = line.strip_prefix("ERROR: ") {
-            let num: usize = num_str.parse()?;
-            child.kill()?;
-
+            num = num_str.parse()?;
             println!(
-                "{}",
+                "\n{}\n",
                 format!(
-                    "Polynomial system number {} possibly has many solutions! Aborting...",
+                    "Polynomial system number {} possibly has many solutions!",
                     num + 1
                 )
                     .red()
             );
-            return Ok(false);
+            vec_many_solutions.push(num);
         } else if let Some(num_str) = line.strip_prefix("TIMEOUT: ") {
-            let num: usize = num_str.parse()?;
-            child.kill()?;
+            num = num_str.parse()?;
 
             println!(
-                "{}",
-                format!(
-                    "Polynomial system number {} has timed-out! Aborting...",
-                    num + 1
-                )
-                    .red()
+                "\n{}\n",
+                format!("Polynomial system number {} has timed-out! ", num + 1).red()
             );
-            return Ok(false);
+            vec_timed_outs.push(num);
         } else if line.eq("FINISHED") {
-            // TODO: Do not always return true here
-            return Ok(true);
+            if vec_timed_outs.is_empty() && vec_many_solutions.is_empty() {
+                return Ok(true);
+            }
+
+            // TODO: Print the number and modules that have failed
+            if !vec_many_solutions.is_empty() {
+                display_unverified_modules(pol_systems, &vec_many_solutions, "many solutions on Groebner basis");
+            }
+
+            if !vec_timed_outs.is_empty() {
+                display_unverified_modules(pol_systems, &vec_timed_outs, "timeout");
+            }
+
+            return Ok(false);
         } else {
             unreachable!();
+        }
+
+        if num + 1 < pol_systems_len {
+            display_ith_pol_system_progress(optimized_pol_systems.as_slice(), num + 1, context);
         }
     }
 
@@ -157,6 +166,41 @@ pub fn verify_pol_systems(
     // }
 
     unreachable!()
+}
+
+fn display_unverified_modules(
+    pol_systems: &[PolynomialSystemFixedSignal],
+    unverified_indices: &[usize],
+    unverified_reason: &str,
+) {
+    let mut unique_component_names = BTreeSet::new();
+    let mut component_name_to_template_name = BTreeMap::<&str, &str>::new();
+
+    // Get unique components and templates
+    for idx in unverified_indices {
+        let component_name = pol_systems[*idx].component_name.as_str();
+        let template_name = pol_systems[*idx].template_name.as_str();
+        unique_component_names.insert(component_name);
+        component_name_to_template_name.insert(component_name, template_name);
+    }
+
+    let display_str: String = itertools::Itertools::intersperse(
+        unique_component_names
+            .iter()
+            .map(|s| format!("{}: {}", s, component_name_to_template_name[s])),
+        ", ".to_string(),
+    )
+        .collect();
+
+    println!(
+        "{}",
+        format!(
+            "Failed to verify due to {unverified_reason} {} polynomial systems in {} components: [{}]",
+            unverified_indices.len(),
+            unique_component_names.len(),
+            display_str
+        ).red()
+    );
 }
 
 fn display_ith_pol_system_progress(
