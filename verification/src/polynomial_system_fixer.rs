@@ -131,14 +131,27 @@ pub fn verify_pol_systems(
                     .red()
             );
             return Ok(false);
-        } else if line.eq("ALL OK") {
+        } else if let Some(num_str) = line.strip_prefix("TIMEOUT: ") {
+            let num: usize = num_str.parse()?;
+            child.kill()?;
+
+            println!(
+                "{}",
+                format!(
+                    "Polynomial system number {} has timed-out! Aborting...",
+                    num + 1
+                )
+                    .red()
+            );
+            return Ok(false);
+        } else if line.eq("FINISHED") {
+            // TODO: Do not always return true here
             return Ok(true);
         } else {
             unreachable!();
         }
     }
 
-    // TODO: Somewhere remove 0=0 constraints from the polynomial system
     // for pol_system in &pol_systems {
     //     display_polynomial_system_readable(pol_system, context);
     // }
@@ -277,7 +290,7 @@ pub fn generate_cocoa_script(
 
         {pol_systems_str}
 
-        println \"ALL OK\";
+        println \"FINISHED\";
     "};
 
     s
@@ -376,18 +389,26 @@ fn get_cocoa_subscript(
     )
         .collect();
 
-    // TODO: Remove SleepFor from Groebner file
+    // TODO: Make timeout a command line parameter
+    let timeout: u32 = 5;
+
     let s = formatdoc! {"
         use R ::= F[{vars}];
 
         I := ideal({pols});
 
-        If not(1 IsIn I) Then
-            println \"ERROR: {pol_system_idx}\";
-            exit;
-        Else;
-            println \"OK: {pol_system_idx}\";
-        EndIf;
+        Try
+            B := GBasisTimeout(I, {timeout});
+
+            If not(1 IsIn I) Then
+                println \"ERROR: {pol_system_idx}\";
+                exit;
+            Else;
+                println \"OK: {pol_system_idx}\";
+            EndIf;
+        UponError E Do
+            println \"TIMEOUT: {pol_system_idx}\";
+        EndTry;
     "};
 
     s
@@ -398,8 +419,17 @@ fn get_prohibition_witness_polynomial(
     context: &InputDataContextView,
     display_kind: SignalDisplayKind,
 ) -> String {
-    // TODO: Find some way to optimize prohibition for binary variables. Instead of generating a new
-    // u_i value, just assert that they must be the opposite binary value.
+    if signals_to_fix.is_empty() {
+        // If signals_to_fix is empty, we pass the "0" ring element to cocoa instead
+        //  of an integer (otherwise cocoa complains ERROR: Expecting type LIST
+        //  or RINGELEM, but found type INT)
+
+        return match display_kind {
+            SignalDisplayKind::Name => "0".to_string(),
+            SignalDisplayKind::Index => "RingElem(R, 0)".to_string(),
+        };
+    }
+
     let str: String = Itertools::intersperse(
         signals_to_fix.iter().map(|(signal_idx, data)| -> String {
             let indexed_signal_kind = format!("x_{}", signal_idx);
@@ -408,6 +438,9 @@ fn get_prohibition_witness_polynomial(
                 SignalDisplayKind::Index => &indexed_signal_kind,
             };
             let witness_value = &context.witness[signal_idx];
+
+            // Optimize  prohibition for binary variables. Instead of generating a new
+            // u_i value, just assert that they must be the opposite binary value.
             if data.is_boolean {
                 format!("({} - {})", signal_name, 1 - witness_value)
             } else {
@@ -440,7 +473,6 @@ fn get_constraint_polynomial(
         //  Only linear constraint c
         linear_term_to_string(c, context, false, display_kind)
     } else {
-        // TODO: Do not print the + symbol if
         let a_str = linear_term_to_string(a, context, true, display_kind);
         let b_str = linear_term_to_string(b, context, true, display_kind);
         let c_str = linear_term_to_string(c, context, false, display_kind);
