@@ -19,9 +19,6 @@ use std::path::Path;
 // TODO: We should apply some heuristics for quickly verifying modules without === constraints,
 //  such as the one published in Circom paper
 
-// TODO: When outputting constraints for Cocoa, remember to print the 0==0 constraint if all hash
-//  maps are empty
-
 // TODO: When outputting constraints for Cocoa, try to simplify them using Gauss-Jordan first
 
 // TODO: When outputting constraints for Cocoa, first do a reachability analysis and remove all
@@ -30,7 +27,7 @@ use std::path::Path;
 fn main() -> Result<(), Box<dyn Error>> {
     let test_artifacts_path =
         Path::new(r"C:\Users\pedro\Documents\dev\CircomVerification\test-artifacts\");
-    let folder_name = r"is-zero-1";
+    let folder_name = r"binsubtest8bit";
 
     let base_path = Path::join(test_artifacts_path, folder_name);
 

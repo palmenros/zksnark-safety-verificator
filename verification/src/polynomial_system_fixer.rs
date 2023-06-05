@@ -45,6 +45,10 @@ pub struct OptimizedPolynomialSystemFixedSignal {
 
     // Signals to fix from the constraints given above
     pub signals_to_fix: BTreeMap<SignalIndex, SignalToFixData>,
+
+    // Name of template and component associated to this polynomial system to be fixed
+    pub template_name: String,
+    pub component_name: String,
 }
 
 // Verifies a polynomial system generating a Cocoa5 file and executing it. Returns true if
@@ -108,7 +112,7 @@ pub fn verify_pol_systems(
                     num + 1,
                     pol_systems_len
                 )
-                .green()
+                    .green()
             );
 
             if num + 1 < pol_systems_len {
@@ -124,7 +128,7 @@ pub fn verify_pol_systems(
                     "Polynomial system number {} possibly has many solutions! Aborting...",
                     num + 1
                 )
-                .red()
+                    .red()
             );
             return Ok(false);
         } else if line.eq("ALL OK") {
@@ -147,16 +151,19 @@ fn display_ith_pol_system_progress(
     index: usize,
     context: &InputDataContextView,
 ) {
+    let pol_system = &pol_systems[index];
     println!(
         "\n{}",
         format!(
-            "Fixing polynomial system {}/{}",
+            "Fixing polynomial system {}/{} ({}: {})",
             index + 1,
-            pol_systems.len()
+            pol_systems.len(),
+            pol_system.component_name,
+            pol_system.template_name
         )
-        .blue()
+            .blue()
     );
-    display_polynomial_system_readable(&pol_systems[index], context);
+    display_polynomial_system_readable(pol_system, context);
 }
 
 // This function computes whether a given constraint is a binary constraint, that is, it specifies
@@ -244,6 +251,8 @@ pub fn optimize_pol_system(
                 )
             })
             .collect(),
+        template_name: pol_system.template_name.clone(),
+        component_name: pol_system.component_name.clone(),
     }
 }
 
@@ -258,7 +267,7 @@ pub fn generate_cocoa_script(
             .map(|(idx, pol_system)| -> String { get_cocoa_subscript(pol_system, context, idx) }),
         "\n".to_string(),
     )
-    .collect();
+        .collect();
 
     let field_prime = context.field.to_string();
 
@@ -351,7 +360,7 @@ fn get_cocoa_subscript(
             .chain(prohibition_vars),
         ", ".to_string(),
     )
-    .collect();
+        .collect();
 
     let pols: String = Itertools::intersperse(
         pol_system
@@ -365,7 +374,7 @@ fn get_cocoa_subscript(
             ))),
         ",\n".to_string(),
     )
-    .collect();
+        .collect();
 
     // TODO: Remove SleepFor from Groebner file
     let s = formatdoc! {"
@@ -410,7 +419,7 @@ fn get_prohibition_witness_polynomial(
         }),
         " * ".to_string(),
     )
-    .collect();
+        .collect();
 
     str
 }

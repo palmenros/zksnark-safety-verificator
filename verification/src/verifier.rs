@@ -20,6 +20,10 @@ pub struct PolynomialSystemFixedSignal {
 
     // Signals to fix from the constraints given above
     pub signals_to_fix: BTreeSet<SignalIndex>,
+
+    // Name of template and component associated to this polynomial system to be fixed
+    pub template_name: String,
+    pub component_name: String,
 }
 
 // Conditions that must be satisfied for this module to be considered safe

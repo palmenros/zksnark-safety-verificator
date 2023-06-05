@@ -358,7 +358,7 @@ impl VerificationGraph {
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                        .as_str(),
+                    .as_str(),
                 ),
             )
             .unwrap();
@@ -643,14 +643,14 @@ impl VerificationGraph {
                     "selected_connected_component-{}",
                     context.tree_constraints.component_name
                 )
-                    .as_str(),
+                .as_str(),
                 Some(
                     format!(
                         "Selected connected component of {}: {}",
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                        .as_str(),
+                    .as_str(),
                 ),
             )
             .unwrap();
@@ -725,14 +725,14 @@ impl VerificationGraph {
                     "post-constraint-elimination-{}",
                     context.tree_constraints.component_name
                 )
-                    .as_str(),
+                .as_str(),
                 Some(
                     format!(
                         "{}: {}",
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                        .as_str(),
+                    .as_str(),
                 ),
             )
             .unwrap();
@@ -740,6 +740,8 @@ impl VerificationGraph {
         let polynomial_system = PolynomialSystemFixedSignal {
             constraints: polynomial_constraints,
             signals_to_fix: self.fixed_nodes.clone(),
+            template_name: context.tree_constraints.template_name.clone(),
+            component_name: context.tree_constraints.component_name.clone(),
         };
 
         Some(polynomial_system)
@@ -837,7 +839,7 @@ impl VerificationGraph {
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                        .as_str(),
+                    .as_str(),
                 ),
             )
             .unwrap();
@@ -852,6 +854,17 @@ impl VerificationGraph {
     ) {
         // 1. Check if this node is an output signal, and decrement the number of not_yet_fixed
         //      signals if it is
+
+        // TODO: Remove debug comment
+        /*if !self.nodes.contains_key(&fixed_node) {
+            println!(
+                "Component: {}. Template: {}. Fixed_node: {}",
+                context.tree_constraints.component_name,
+                context.tree_constraints.template_name,
+                fixed_node
+            );
+        }*/
+
         if let Node::OutputSignal = self.nodes[&fixed_node] {
             self.number_of_outputs_not_yet_fixed -= 1;
         }
@@ -866,6 +879,11 @@ impl VerificationGraph {
         if self.outgoing_safe_assignments.contains_key(&fixed_node) {
             for ass_idx in &self.outgoing_safe_assignments[&fixed_node] {
                 let ass = &mut self.safe_assignments[*ass_idx];
+
+                if !ass.active {
+                    continue;
+                }
+
                 let constraint = substitute_witness_signal_into_storage(
                     ass.associated_constraint,
                     context,
@@ -873,14 +891,31 @@ impl VerificationGraph {
                     fixed_node,
                 );
 
-                // Maybe after substituting an input signal another signal which originally
+                // TODO: Maybe after substituting an input signal another signal which originally
                 //  appeared has now a zero coefficient, so we have to clean that signal too.
                 //  Example: out <== -in*inv + 1. If in=0, then it is equivalent to out <== 1
                 //  To handle that, instead of just removing from ass.rhs_signals the fixed_node,
                 //  we assign to it the new list of signals after simplification
 
-                ass.rhs_signals = constraint.take_signals().iter().map(|x| **x).collect();
+                ass.rhs_signals = constraint.take_cloned_signals_ordered();
                 ass.rhs_signals.remove(&ass.lhs_signal);
+
+                // TODO: Remove following test comment:
+                // ass.rhs_signals.remove(&fixed_node);
+                // ass.rhs_signals = alternative_signals.clone();
+                // if alternative_signals != ass.rhs_signals {
+                //     let alternative_vec: Vec<String> = alternative_signals.iter().map(|x| -> String { context.signal_name_map[x].clone() }).collect();
+                //     let ass_vec: Vec<String> = ass.rhs_signals.iter().map(|x| -> String { context.signal_name_map[x].clone() }).collect();
+                //
+                //     println!("Difference found when fixing signal {} in constraint {} in component {} template {}. Alternative: {:?}\n Ass: {:?}",
+                //              context.signal_name_map[&fixed_node],
+                //              &ass.associated_constraint,
+                //              context.tree_constraints.component_name,
+                //              context.tree_constraints.template_name,
+                //              alternative_vec,
+                //              ass_vec);
+                // }
+                // ass.rhs_signals.remove(&fixed_node);
 
                 propagate_fixed_node_in_safe_assignment(
                     &mut self.fixed_nodes,
@@ -898,6 +933,11 @@ impl VerificationGraph {
         if self.edge_constraints.contains_key(&fixed_node) {
             for unsafe_constraint_idx in &self.edge_constraints[&fixed_node] {
                 let unsafe_constraint = &mut self.unsafe_constraints[*unsafe_constraint_idx];
+
+                if !unsafe_constraint.active {
+                    continue;
+                }
+
                 substitute_witness_signal_into_storage(
                     unsafe_constraint.associated_constraint,
                     context,
@@ -920,6 +960,7 @@ impl VerificationGraph {
         // 2.3 Sub-components
         if let Node::SubComponentInputSignal(cmp_index) = self.nodes[&fixed_node] {
             let cmp = self.subcomponents.get_mut(&cmp_index).unwrap();
+
             cmp.input_signals.remove(&fixed_node);
 
             if cmp.input_signals.is_empty() {
@@ -973,7 +1014,7 @@ fn substitute_witness_signal_into_storage(
             coefficients: substitution_to_coefficients,
         },
     )
-        .unwrap();
+    .unwrap();
 
     Constraint::apply_substitution(&mut constraint, &substitution, &context.field);
 
