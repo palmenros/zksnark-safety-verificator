@@ -124,7 +124,7 @@ pub fn verify_pol_systems(
                     num + 1,
                     pol_systems_len
                 )
-                    .green()
+                .green()
             );
         } else if let Some(num_str) = line.strip_prefix("ERROR: ") {
             num = num_str.parse()?;
@@ -134,7 +134,7 @@ pub fn verify_pol_systems(
                     "Polynomial system number {} possibly has many solutions!",
                     num + 1
                 )
-                    .red()
+                .red()
             );
             vec_many_solutions.push(num);
         } else if let Some(num_str) = line.strip_prefix("TIMEOUT: ") {
@@ -202,7 +202,7 @@ fn display_unverified_modules(
             .map(|s| format!("{}: {}", s, component_name_to_template_name[s])),
         ", ".to_string(),
     )
-        .collect();
+    .collect();
 
     println!(
         "{}",
@@ -230,7 +230,7 @@ fn display_ith_pol_system_progress(
             pol_system.component_name,
             pol_system.template_name
         )
-            .blue()
+        .blue()
     );
     display_polynomial_system_readable(pol_system, context);
 }
@@ -336,7 +336,7 @@ pub fn generate_cocoa_script(
             .map(|(idx, pol_system)| -> String { get_cocoa_subscript(pol_system, context, idx) }),
         "\n".to_string(),
     )
-        .collect();
+    .collect();
 
     let field_prime = context.field.to_string();
 
@@ -429,7 +429,7 @@ fn get_cocoa_subscript(
             .chain(prohibition_vars),
         ", ".to_string(),
     )
-        .collect();
+    .collect();
 
     let prohibition_polynomial = get_prohibition_witness_polynomial(
         &pol_system.signals_to_fix,
@@ -458,7 +458,7 @@ fn get_cocoa_subscript(
                 .chain(iter::once(prohibition_polynomial.string)),
             ",\n".to_string(),
         )
-            .collect();
+        .collect();
 
         // TODO: Make timeout a command line parameter
         let timeout: u32 = 5;
@@ -531,7 +531,7 @@ fn get_prohibition_witness_polynomial(
         }),
         " * ".to_string(),
     )
-        .collect();
+    .collect();
 
     ProhibitionPolynomial {
         string: str,

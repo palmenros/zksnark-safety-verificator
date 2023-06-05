@@ -1,4 +1,3 @@
-use crate::input_data::DebugOptions;
 use crate::verification_graph::VerificationGraph;
 use crate::InputDataContextView;
 use graphviz_rust::cmd::Format;
@@ -25,8 +24,8 @@ pub struct DebugSVGPrinter {
 }
 
 impl DebugSVGPrinter {
-    pub fn new(svg_folder_path: &str, _debug_options: &DebugOptions) -> Self {
-        // TODO: Maybe only delete SVGs if debug_options.generate_svg_diagrams
+    pub fn new(svg_folder_path: &str) -> Self {
+        // TODO: Maybe only delete SVGs if options.generate_svg_diagrams
         delete_all_files(Path::new(svg_folder_path));
 
         Self {
@@ -43,7 +42,7 @@ impl DebugSVGPrinter {
         graph_title: Option<&str>,
     ) -> Result<(), Box<dyn Error>> {
         // If debug SVGs are deactivated, do not try to draw
-        if !context.debug_options.generate_svg_diagrams {
+        if !context.options.generate_svg_diagrams {
             return Ok(());
         }
 

@@ -374,10 +374,16 @@ impl VerificationGraph {
                 let mut subcomponent_verification_results: Vec<SubComponentVerificationResult> =
                     vec![];
 
-                let num_subcomponents = context.tree_constraints.subcomponents.len();
-                subcomponent_verification_results.reserve(num_subcomponents);
+                subcomponent_verification_results.reserve(self.sub_components_to_verify.len());
 
-                for subcomponent_idx in 0..num_subcomponents {
+                // TODO: Verify that sub_components_to_verify has the correct subcomponents. If so,
+                //  remove the following comments
+
+                // let num_subcomponents = context.tree_constraints.subcomponents.len();
+                // subcomponent_verification_results.reserve(num_subcomponents);
+                //for subcomponent_idx in 0..num_subcomponents {
+
+                for &subcomponent_idx in &self.sub_components_to_verify {
                     let subcomponent_context =
                         context.get_subcomponent_context_view(subcomponent_idx);
                     let mut subcomponent_verification_graph =
@@ -816,12 +822,12 @@ impl VerificationGraph {
             let node = self.fixed_nodes.pop_last().unwrap();
             self.propagate_fixed_node(node, context, constraint_storage);
 
-            if !context.debug_options.generate_only_last_propagation_svg {
+            if !context.options.generate_only_last_propagation_svg {
                 self.draw_propagation_svg(context);
             }
         }
 
-        if context.debug_options.generate_svg_diagrams {
+        if context.options.generate_svg_diagrams {
             self.draw_propagation_svg(context);
         }
     }
