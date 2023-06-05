@@ -186,7 +186,9 @@ impl InputDataContext {
     }
 
     pub fn get_context_view(&self) -> InputDataContextView {
-        // TODO: Update how to get field when using another .json
+        // FIXME: Use another more optimum .json format in order not to store the field prime
+        //  number in every subtree
+
         let field = BigInt::from_str(self.tree_constraints.field.as_str()).unwrap();
         InputDataContextView {
             witness: &self.witness,
@@ -203,13 +205,11 @@ impl InputDataContext {
 /* Represents a view of the context. tree_constraints might be a subcomponent instead of main component */
 impl<'a> InputDataContextView<'a> {
     pub fn get_subcomponent_context_view(&self, idx: ComponentIndex) -> InputDataContextView {
-        // TODO: Update how to get field when using another .json
-        let field = BigInt::from_str(self.tree_constraints.field.as_str()).unwrap();
         InputDataContextView {
             witness: self.witness,
             signal_name_map: self.signal_name_map,
             tree_constraints: self.tree_constraints.subcomponents.get(idx).unwrap(),
-            field,
+            field: self.field.clone(),
             base_path: self.base_path,
             svg_printer: self.svg_printer,
             options: self.options,

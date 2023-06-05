@@ -1,6 +1,3 @@
-// TODO: Create a function that takes a polynomial system and the signals to be fixed, simplify
-//  it using Gauss-Jordan and finally generate Cocoa5 code for solving the Groebner Basis
-
 use crate::input_data::SignalIndex;
 use crate::verifier::PolynomialSystemFixedSignal;
 use crate::InputDataContextView;
@@ -56,7 +53,7 @@ pub struct ProhibitionPolynomial {
     pub string: String,
 
     // Number of variables contained in the polynomial
-    pub num_vars: usize,
+    pub num_vars: u32,
 }
 
 // Verifies a polynomial system generating a Cocoa5 file and executing it. Returns true if
@@ -67,7 +64,6 @@ pub fn verify_pol_systems(
 ) -> Result<bool, Box<dyn Error>> {
     assert!(!pol_systems.is_empty());
 
-    // TODO: Add support for specifying in a command line argument the CoCoA PATH
     let maybe_cocoa_path = which("CoCoAInterpreter");
     if let Err(e) = maybe_cocoa_path {
         let error_msg = format!("Couldn't find CocoA 5 interpreter in PATH: {}", e);
@@ -150,7 +146,7 @@ pub fn verify_pol_systems(
                 return Ok(true);
             }
 
-            // TODO: Print the number and modules that have failed
+            // Print the number and modules that have failed
             if !vec_many_solutions.is_empty() {
                 display_unverified_modules(
                     pol_systems,
@@ -437,11 +433,11 @@ fn get_cocoa_subscript(
         SignalDisplayKind::Index,
     );
 
-    // TODO: Make var_limit a command line parameter
-
     // Cocoa will struggle with prohibition polynomials containing a large amount of variables.
     //  We will set a soft limit in order not to get stuck.
-    let var_limit = 75;
+    let var_limit = context
+        .options
+        .max_vars_prohibition_polynomial_before_timeout;
 
     return if prohibition_polynomial.num_vars > var_limit {
         formatdoc! {"
@@ -460,8 +456,7 @@ fn get_cocoa_subscript(
         )
         .collect();
 
-        // TODO: Make timeout a command line parameter
-        let timeout: u32 = 5;
+        let timeout: u32 = context.options.groebner_cocoa_timeout_seconds;
 
         formatdoc! {"
         use R ::= F[{vars}];
@@ -544,8 +539,9 @@ fn get_constraint_polynomial(
     context: &InputDataContextView,
     display_kind: SignalDisplayKind,
 ) -> String {
-    // We assume that the constraints are fixed (called Constraint::fix_constraint)
-    // TODO: Check that fix_constraint is called
+    // We assume that the constraints are fixed (called Constraint::fix_constraint) before calling
+    //  these method. Right now, we do so everytime we update a constraint in
+    //  substitute_witness_signal_into_storage
 
     let a = constraint.a();
     let b = constraint.b();

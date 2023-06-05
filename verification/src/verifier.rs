@@ -88,7 +88,7 @@ impl SubComponentVerificationResult {
             Exception(exception) => match exception {
                 NoUnsafeConstraintConnectedComponentWithoutCycles => {
                     Some(format!(
-                        // TODO: Change this message, as it may not always be a cyclic dependency (see is-zero-1)
+                        // TODO: Review this message, as the exception may not always be a cyclic dependency
                         "[Exception] Cyclic dependencies between === constraints connected component in component '{}', cannot determine safety",
                         self.subcomponent_name
                     ))
@@ -183,8 +183,6 @@ fn flatten_verification_result_and_report_errors(
             }
         }
     });
-
-    // TODO: If there are no errors / exceptions found, give a different message to the user
 
     if num_unsafe_found + num_exceptions_found > 0 {
         println!(

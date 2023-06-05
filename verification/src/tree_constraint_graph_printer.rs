@@ -52,7 +52,7 @@ impl DebugSVGPrinter {
             graph_title,
         );
 
-        // TODO: Remove println debug print of Graphviz code
+        // The following commented code prints the textual version of the graphviz code
         // let s = graphviz_rust::print(g.clone(), &mut PrinterContext::default());
         // println!("{}", s);
 
@@ -270,7 +270,7 @@ fn construct_graphviz_graph_from_verification_graph(
             continue;
         }
 
-        // TODO: Highlight if chosen in connected component debug info
+        // Highlight if chosen in connected component debug info
 
         let lhs = ass.lhs_signal;
 
@@ -284,7 +284,7 @@ fn construct_graphviz_graph_from_verification_graph(
             "red"
         };
 
-        // TODO: Handle rhs_signals of length 0 (for example i <== 1).
+        // TODO: Better handle rhs_signals of length 0 (for example i <== 1).
         if ass.rhs_signals.len() == 1 {
             let rhs = ass.rhs_signals.iter().next().unwrap();
             // Only one source, create direct edge
@@ -344,12 +344,12 @@ fn construct_graphviz_graph_from_verification_graph(
                 attr!("fontname", "Courier")
             )));
         } else {
-            // TODO: Maybe special case for constraints where only 2 signals appear where we don't
-            //          draw the inner point?
+            // TODO: Create a special case for === constraints where only 2 signals appear so we
+            //  don't draw the inner point.
 
             let tmp_node_str = format!("constraint_{}", c.associated_constraint);
 
-            // TODO: Find a better way to label the point with ===
+            // Label the point with ===
             g.add_stmt(Stmt::Node(node!(
                 tmp_node_str;
                 attr!("shape", "point"),
