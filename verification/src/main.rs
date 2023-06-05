@@ -27,7 +27,7 @@ use std::path::Path;
 fn main() -> Result<(), Box<dyn Error>> {
     let test_artifacts_path =
         Path::new(r"C:\Users\pedro\Documents\dev\CircomVerification\test-artifacts\");
-    let folder_name = r"binsubtest";
+    let folder_name = r"circomlib-tests\smtverifier10_test0";
 
     let base_path = Path::join(test_artifacts_path, folder_name);
 

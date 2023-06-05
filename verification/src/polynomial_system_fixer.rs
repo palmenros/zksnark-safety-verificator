@@ -51,6 +51,14 @@ pub struct OptimizedPolynomialSystemFixedSignal {
     pub component_name: String,
 }
 
+pub struct ProhibitionPolynomial {
+    // Representation as a string
+    pub string: String,
+
+    // Number of variables contained in the polynomial
+    pub num_vars: usize,
+}
+
 // Verifies a polynomial system generating a Cocoa5 file and executing it. Returns true if
 //  verification succeeded and false otherwise.
 pub fn verify_pol_systems(
@@ -144,7 +152,11 @@ pub fn verify_pol_systems(
 
             // TODO: Print the number and modules that have failed
             if !vec_many_solutions.is_empty() {
-                display_unverified_modules(pol_systems, &vec_many_solutions, "many solutions on Groebner basis");
+                display_unverified_modules(
+                    pol_systems,
+                    &vec_many_solutions,
+                    "many solutions on Groebner basis",
+                );
             }
 
             if !vec_timed_outs.is_empty() {
@@ -376,11 +388,11 @@ pub fn display_polynomial_system_readable(
     println!("Signals to fix: {:?}", signals_to_fix_name_vec);
     println!("Binary signals: {:?}", binary_signals_name_vec);
 
+    let prohibition_polynomial =
+        get_prohibition_witness_polynomial(&pol_system.signals_to_fix, context, display_kind);
+
     println!("Prohibition constraint: ");
-    println!(
-        "{} = 0",
-        get_prohibition_witness_polynomial(&pol_system.signals_to_fix, context, display_kind)
-    );
+    println!("{} = 0", prohibition_polynomial.string);
 }
 
 // Returns a String containing a subscript in the Cocoa5 CAS system for proving that the
@@ -419,24 +431,39 @@ fn get_cocoa_subscript(
     )
         .collect();
 
-    let pols: String = Itertools::intersperse(
-        pol_system
-            .constraints
-            .iter()
-            .map(|c| -> String { get_constraint_polynomial(c, context, SignalDisplayKind::Index) })
-            .chain(iter::once(get_prohibition_witness_polynomial(
-                &pol_system.signals_to_fix,
-                context,
-                SignalDisplayKind::Index,
-            ))),
-        ",\n".to_string(),
-    )
-        .collect();
+    let prohibition_polynomial = get_prohibition_witness_polynomial(
+        &pol_system.signals_to_fix,
+        context,
+        SignalDisplayKind::Index,
+    );
 
-    // TODO: Make timeout a command line parameter
-    let timeout: u32 = 5;
+    // TODO: Make var_limit a command line parameter
 
-    let s = formatdoc! {"
+    // Cocoa will struggle with prohibition polynomials containing a large amount of variables.
+    //  We will set a soft limit in order not to get stuck.
+    let var_limit = 75;
+
+    return if prohibition_polynomial.num_vars > var_limit {
+        formatdoc! {"
+            println \"TIMEOUT: {pol_system_idx}\";
+        "}
+    } else {
+        let pols: String = Itertools::intersperse(
+            pol_system
+                .constraints
+                .iter()
+                .map(|c| -> String {
+                    get_constraint_polynomial(c, context, SignalDisplayKind::Index)
+                })
+                .chain(iter::once(prohibition_polynomial.string)),
+            ",\n".to_string(),
+        )
+            .collect();
+
+        // TODO: Make timeout a command line parameter
+        let timeout: u32 = 5;
+
+        formatdoc! {"
         use R ::= F[{vars}];
 
         I := ideal({pols});
@@ -453,26 +480,32 @@ fn get_cocoa_subscript(
         UponError E Do
             println \"TIMEOUT: {pol_system_idx}\";
         EndTry;
-    "};
-
-    s
+        "}
+    };
 }
 
 fn get_prohibition_witness_polynomial(
     signals_to_fix: &BTreeMap<SignalIndex, SignalToFixData>,
     context: &InputDataContextView,
     display_kind: SignalDisplayKind,
-) -> String {
+) -> ProhibitionPolynomial {
     if signals_to_fix.is_empty() {
         // If signals_to_fix is empty, we pass the "0" ring element to cocoa instead
         //  of an integer (otherwise cocoa complains ERROR: Expecting type LIST
         //  or RINGELEM, but found type INT)
 
-        return match display_kind {
+        let str = match display_kind {
             SignalDisplayKind::Name => "0".to_string(),
             SignalDisplayKind::Index => "RingElem(R, 0)".to_string(),
         };
+
+        return ProhibitionPolynomial {
+            string: str,
+            num_vars: 0,
+        };
     }
+
+    let mut num_vars = 0;
 
     let str: String = Itertools::intersperse(
         signals_to_fix.iter().map(|(signal_idx, data)| -> String {
@@ -486,8 +519,10 @@ fn get_prohibition_witness_polynomial(
             // Optimize  prohibition for binary variables. Instead of generating a new
             // u_i value, just assert that they must be the opposite binary value.
             if data.is_boolean {
+                num_vars += 1;
                 format!("({} - {})", signal_name, 1 - witness_value)
             } else {
+                num_vars += 2;
                 format!(
                     "(({} - {})*u_{} - 1)",
                     signal_name, witness_value, signal_idx
@@ -498,7 +533,10 @@ fn get_prohibition_witness_polynomial(
     )
         .collect();
 
-    str
+    ProhibitionPolynomial {
+        string: str,
+        num_vars,
+    }
 }
 
 fn get_constraint_polynomial(
