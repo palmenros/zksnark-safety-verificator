@@ -120,7 +120,7 @@ pub fn verify_pol_systems(
                     num + 1,
                     pol_systems_len
                 )
-                .green()
+                    .green()
             );
         } else if let Some(num_str) = line.strip_prefix("ERROR: ") {
             num = num_str.parse()?;
@@ -130,7 +130,7 @@ pub fn verify_pol_systems(
                     "Polynomial system number {} possibly has many solutions!",
                     num + 1
                 )
-                .red()
+                    .red()
             );
             vec_many_solutions.push(num);
         } else if let Some(num_str) = line.strip_prefix("TIMEOUT: ") {
@@ -164,7 +164,7 @@ pub fn verify_pol_systems(
             unreachable!();
         }
 
-        if num + 1 < pol_systems_len {
+        if num < pol_systems_len - 1 {
             display_ith_pol_system_progress(optimized_pol_systems.as_slice(), num + 1, context);
         }
     }
@@ -198,7 +198,7 @@ fn display_unverified_modules(
             .map(|s| format!("{}: {}", s, component_name_to_template_name[s])),
         ", ".to_string(),
     )
-    .collect();
+        .collect();
 
     println!(
         "{}",
@@ -226,7 +226,7 @@ fn display_ith_pol_system_progress(
             pol_system.component_name,
             pol_system.template_name
         )
-        .blue()
+            .blue()
     );
     display_polynomial_system_readable(pol_system, context);
 }
@@ -332,7 +332,7 @@ pub fn generate_cocoa_script(
             .map(|(idx, pol_system)| -> String { get_cocoa_subscript(pol_system, context, idx) }),
         "\n".to_string(),
     )
-    .collect();
+        .collect();
 
     let field_prime = context.field.to_string();
 
@@ -400,8 +400,16 @@ fn get_cocoa_subscript(
 ) -> String {
     let mut used_signal_indices = BTreeSet::new();
 
+    // The signals appearing in the constraints are used
+
     for constraint in &pol_system.constraints {
         used_signal_indices.append(&mut constraint.take_cloned_signals_ordered());
+    }
+
+    // The signals to be fixed are also used (even if they don't appear in any of the equations)
+
+    for signal in pol_system.signals_to_fix.keys() {
+        used_signal_indices.insert(*signal);
     }
 
     // let prohibition_vars = (0..pol_system.signals_to_fix.len()).map(|i| format!("u_{}", i));
@@ -425,7 +433,7 @@ fn get_cocoa_subscript(
             .chain(prohibition_vars),
         ", ".to_string(),
     )
-    .collect();
+        .collect();
 
     let prohibition_polynomial = get_prohibition_witness_polynomial(
         &pol_system.signals_to_fix,
@@ -454,7 +462,7 @@ fn get_cocoa_subscript(
                 .chain(iter::once(prohibition_polynomial.string)),
             ",\n".to_string(),
         )
-        .collect();
+            .collect();
 
         let timeout: u32 = context.options.groebner_cocoa_timeout_seconds;
 
@@ -468,7 +476,6 @@ fn get_cocoa_subscript(
 
             If not(1 IsIn I) Then
                 println \"ERROR: {pol_system_idx}\";
-                exit;
             Else;
                 println \"OK: {pol_system_idx}\";
             EndIf;
@@ -526,7 +533,7 @@ fn get_prohibition_witness_polynomial(
         }),
         " * ".to_string(),
     )
-    .collect();
+        .collect();
 
     ProhibitionPolynomial {
         string: str,

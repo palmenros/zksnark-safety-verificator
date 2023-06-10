@@ -357,7 +357,7 @@ impl VerificationGraph {
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
@@ -646,14 +646,14 @@ impl VerificationGraph {
                     "selected_connected_component-{}",
                     context.tree_constraints.component_name
                 )
-                .as_str(),
+                    .as_str(),
                 Some(
                     format!(
                         "Selected connected component of {}: {}",
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
@@ -728,14 +728,14 @@ impl VerificationGraph {
                     "post-constraint-elimination-{}",
                     context.tree_constraints.component_name
                 )
-                .as_str(),
+                    .as_str(),
                 Some(
                     format!(
                         "{}: {}",
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
@@ -845,7 +845,7 @@ impl VerificationGraph {
                         context.tree_constraints.component_name,
                         context.tree_constraints.template_name
                     )
-                    .as_str(),
+                        .as_str(),
                 ),
             )
             .unwrap();
@@ -858,6 +858,10 @@ impl VerificationGraph {
         context: &InputDataContextView,
         constraint_storage: &mut ConstraintStorage,
     ) {
+        if !self.nodes.contains_key(&fixed_node) {
+            return;
+        }
+
         // 1. Check if this node is an output signal, and decrement the number of not_yet_fixed
         //      signals if it is
 
@@ -1022,7 +1026,7 @@ fn substitute_witness_signal_into_storage(
             coefficients: substitution_to_coefficients,
         },
     )
-    .unwrap();
+        .unwrap();
 
     Constraint::apply_substitution(&mut constraint, &substitution, &context.field);
 

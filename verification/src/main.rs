@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // Hardcoded path for testing purposes if that flag was passed
         let test_artifacts_path =
             Path::new(r"C:\Users\pedro\Documents\dev\CircomVerification\test-artifacts\");
-        let folder_name = r"binsubtest8bit";
+        let folder_name = r"binsubtest4bit";
 
         test_artifacts_path.join(folder_name)
     });

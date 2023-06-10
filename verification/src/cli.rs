@@ -66,8 +66,8 @@ pub fn parse_command_line_arguments() -> (Option<PathBuf>, Options) {
         ))
         .get_matches();
 
-    let generate_only_last_propagation_svg = matches.get_flag("propagationsvg");
-    let generate_svg_diagrams = generate_only_last_propagation_svg || matches.get_flag("svg");
+    let generate_only_last_propagation_svg = !matches.get_flag("propagationsvg");
+    let generate_svg_diagrams = !generate_only_last_propagation_svg || matches.get_flag("svg");
     let groebner_cocoa_timeout_seconds = *matches.get_one::<u32>("timeout").unwrap();
     let max_vars_prohibition_polynomial_before_timeout =
         *matches.get_one::<u32>("maxvars").unwrap();
