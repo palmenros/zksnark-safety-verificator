@@ -186,7 +186,7 @@ impl InputDataContext {
     }
 
     pub fn get_context_view(&self) -> InputDataContextView {
-        // FIXME: Use another more optimum .json format in order not to store the field prime
+        // FIXME: Use another better .json format in order not to store the field prime
         //  number in every subtree
 
         let field = BigInt::from_str(self.tree_constraints.field.as_str()).unwrap();

@@ -375,9 +375,6 @@ impl VerificationGraph {
 
                 subcomponent_verification_results.reserve(self.sub_components_to_verify.len());
 
-                // TODO: Verify that sub_components_to_verify has the correct subcomponents. If so,
-                //  remove the following comments
-
                 // let num_subcomponents = context.tree_constraints.subcomponents.len();
                 // subcomponent_verification_results.reserve(num_subcomponents);
                 //for subcomponent_idx in 0..num_subcomponents {
