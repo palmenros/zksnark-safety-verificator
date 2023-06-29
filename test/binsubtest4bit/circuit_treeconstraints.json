@@ -1,0 +1,137 @@
+{
+  "field": "21888242871839275222246405745257275088548364400416034343698204186575808495617",
+  "no_constraints": 15,
+  "initial_constraint": 0,
+  "node_id": 3,
+  "template_name": "A()",
+  "component_name": "main",
+  "number_inputs": 2,
+  "number_outputs": 1,
+  "number_signals": 3,
+  "initial_signal": 1,
+  "are_double_arrow": [
+    [
+      0,
+      13
+    ],
+    [
+      1,
+      18
+    ],
+    [
+      2,
+      23
+    ],
+    [
+      3,
+      27
+    ],
+    [
+      4,
+      24
+    ],
+    [
+      5,
+      28
+    ],
+    [
+      6,
+      25
+    ],
+    [
+      7,
+      29
+    ],
+    [
+      8,
+      26
+    ],
+    [
+      9,
+      30
+    ],
+    [
+      10,
+      5
+    ],
+    [
+      11,
+      6
+    ],
+    [
+      12,
+      7
+    ],
+    [
+      13,
+      8
+    ],
+    [
+      14,
+      1
+    ]
+  ],
+  "subcomponents": [
+    {
+      "field": "21888242871839275222246405745257275088548364400416034343698204186575808495617",
+      "no_constraints": 1,
+      "initial_constraint": 15,
+      "node_id": 2,
+      "template_name": "Bits2Num(4)",
+      "component_name": "main.b2n",
+      "number_inputs": 4,
+      "number_outputs": 1,
+      "number_signals": 5,
+      "initial_signal": 4,
+      "are_double_arrow": [
+        [
+          15,
+          4
+        ]
+      ],
+      "subcomponents": []
+    },
+    {
+      "field": "21888242871839275222246405745257275088548364400416034343698204186575808495617",
+      "no_constraints": 5,
+      "initial_constraint": 16,
+      "node_id": 0,
+      "template_name": "Num2Bits(4)",
+      "component_name": "main.n2ba",
+      "number_inputs": 1,
+      "number_outputs": 4,
+      "number_signals": 5,
+      "initial_signal": 9,
+      "are_double_arrow": [],
+      "subcomponents": []
+    },
+    {
+      "field": "21888242871839275222246405745257275088548364400416034343698204186575808495617",
+      "no_constraints": 5,
+      "initial_constraint": 21,
+      "node_id": 0,
+      "template_name": "Num2Bits(4)",
+      "component_name": "main.n2bb",
+      "number_inputs": 1,
+      "number_outputs": 4,
+      "number_signals": 5,
+      "initial_signal": 14,
+      "are_double_arrow": [],
+      "subcomponents": []
+    },
+    {
+      "field": "21888242871839275222246405745257275088548364400416034343698204186575808495617",
+      "no_constraints": 6,
+      "initial_constraint": 26,
+      "node_id": 1,
+      "template_name": "BinSub(4)",
+      "component_name": "main.sub",
+      "number_inputs": 8,
+      "number_outputs": 4,
+      "number_signals": 13,
+      "initial_signal": 19,
+      "are_double_arrow": [],
+      "subcomponents": []
+    }
+  ]
+}
